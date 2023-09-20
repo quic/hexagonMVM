@@ -216,10 +216,10 @@ MINIVM_handle_tlbmissrw:
 	}
 	memw_locked(r22,p0) = r21			// write 1
 	if (!p0) jump 1b
-	tlbidx = r23
-	tlblo = r28
-	tlbhi = r29
-	tlbw
+	r3 = r23
+	r5 = r29
+	r4 = r28
+	tlbw(r5:4, r3)
 	r29 = ssr
 	r28 = badva
 	{
@@ -273,9 +273,9 @@ MINIVM_handle_tlbmissrw:
 		r21 |= asl(r23,#20)		// bits
 		r30.h = #0xfffe			// form l2 vaddr
 	}
-	tlblo = r21
+	r4 = r21
 	//  TLBHI still had the same value from previous tlbw (r30.h = 0xfffe)
-	tlbw
+	tlbw(r5:4, r3)
 	{
 		r30 = memw(r30)			// L2 entry
 		r23 = #0x0e00			// mask to check RWX
@@ -302,9 +302,8 @@ MINIVM_handle_tlbmissrw:
 		r21:20 = lsr(r21:20,#12)	// tlblo in r20
 		p1 = cmp.gt(r30,#TLB_LAST_REPLACEABLE_ENTRY-1)
 	}
-	tlbhi = r28
-	tlbp
-	r21 = tlbidx
+	r5 = r28
+	r21 = tlbp(r5)
 	{
 		p0 = tstbit(r21,#31)
 		if (!p0.new) jump:nt 2f		// replaced while spinlocking, skip write
@@ -314,9 +313,8 @@ MINIVM_handle_tlbmissrw:
 	{
 		memw(r22) = r21			// save new index
 	}
-	tlbidx = r21
-	tlblo = r20
-	tlbw
+	r4 = r20
+	tlbw(r5:4, r21)
 2:
 	{
 		r30 = #MAKEWORK(MINIVM_lock)
@@ -713,11 +711,10 @@ MINIVM_register_ptb:
 	}
 	memw_locked(r12,p0) = r12
 	if (!p0) jump 9b
-	tlbhi = r13
-	tlblo = r13
+	r4 = r13
+	r5 = r13
 1:
-	tlbidx = r10
-	tlbw
+	tlbw(r5:4, r10)
 	{
 		r10 = add(r10,#1)
 		p0 = cmp.gt(r10,#TLB_LAST_REPLACEABLE_ENTRY-1)
@@ -1233,12 +1230,11 @@ vm_bootup_code:
 	}
 	r12 = add(r10,r11)		// initial PT PA
 	evb = r9
-	tlbhi = r15
-	tlblo = r15
+	r5 = r15
+	r4 = r15
 1:
 	// clear TLB
-	tlbidx = r15
-	tlbw
+	tlbw(r5:4, r15)
 	{
 		r15 = add(r15,#1)
 	}:endloop0
@@ -1257,10 +1253,9 @@ vm_bootup_code:
 		r13 |= asl(r11,#20)
 		r14.l = #lo(0x300ffff0)
 	}
-	tlbidx = r15
-	tlblo = r13
-	tlbhi = r14
-	tlbw
+	r5 = r14
+	r4 = r13
+	tlbw(r5:4, r15)
 
 	// Add temp. guest translation
 	r15 = #1
@@ -1272,14 +1267,13 @@ vm_bootup_code:
 	r13.l = #lo(GUEST_ENTRY >> 12)
 	r13 |= asl(r11,#20)
 
-	tlbidx = r15
-	tlblo = r13
-	tlbhi = r14
-	tlbw
+	r5 = r14
+	r4 = r13
+	tlbw(r5:4, r15)
 
 	// Add temporary entry
 	r15 = #3
-	tlbidx = r15
+	r3 = r15
 	r14 = lsr(r10,#12)
 	r14 |= asl(r15,#28)
 #if __HEXAGON_ARCH__ == 2
@@ -1289,9 +1283,9 @@ vm_bootup_code:
 #endif
 	r13 = lsr(r10,#12)
 	r13 |= asl(r11,#20)
-	tlbhi = r14
-	tlblo = r13
-	tlbw
+	r5 = r14
+	r4 = r13
+	tlbw(r5:4, r3)
 
 	r0 = #0x7f
 	r0.h = #0x3			//  l2 cache 256kB
@@ -1304,9 +1298,8 @@ vm_bootup_code:
 	jumpr r1			// jump to virtual space
 1:
 	r15 = #0
-	tlbhi = r15
-	tlblo = r15
-	tlbw				// clear out tmp mapping
+	r5:4 = #0
+	tlbw(r5:4, r3)				// clear out tmp mapping
 
 	r7.h = #hi(MINIVM_context_t0)
 	r7.l = #lo(MINIVM_context_t0)
