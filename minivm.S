@@ -166,7 +166,7 @@ MINIVM_handle_tlbmissx:
 	}
 	r30 = elr
 	if (p0) r30 = add(r30,#12)
-	badva = r30
+	badva0 = r30 // TODO: badva0 or badva1?
 	{
 		jump 1f
 		r30 = memw(r24+#CONTEXT_gptb)
