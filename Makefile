@@ -1,14 +1,14 @@
 ARCH=hexagon-
-CC=${ARCH}gcc
-LD=${ARCH}ld
+CC=${ARCH}clang
+LD=${ARCH}link
 OBJCOPY=${ARCH}objcopy
 
-ARCHV?=2
+ARCHV?=73
 GUEST_ENTRY?=0x0
 
 all: minivm 
 
-CFLAGS=-mv${ARCHV} -DGUEST_ENTRY=${GUEST_ENTRY} -mv${ARCHV}
+CFLAGS=-mv${ARCHV} -DGUEST_ENTRY=${GUEST_ENTRY}
 ASFLAGS=${CFLAGS}
 
 OBJS=minivm.o
