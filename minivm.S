@@ -1115,7 +1115,7 @@ vm_newcpu_startup:
 	r24.l = #lo(MINIVM_context_t0)
 	r23 = #lo(MINIVM_context_t1-MINIVM_context_t0)
 	r24 += mpyi(r23,r11)
-	sgp = r24
+	sgp0 = r24
 	r31 = memw(r24+#0)
 	r14 = memw(r24+#8)
 	r11:10 = memd(r14+#0x40)
@@ -1310,7 +1310,7 @@ vm_bootup_code:
 	r7.l = #lo(MINIVM_context_t0)
 	memw(r7+#CONTEXT_gptb) = r12	// set initial page table
 	r2 = #-1
-	sgp = r7
+	sgp0 = r7
 	r8 = #MAKEWORK(MINIVM_tlbidx)
 	r6 = #TLB_FIRST_REPLACEABLE_ENTRY
 	memw(r8) = r6
