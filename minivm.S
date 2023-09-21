@@ -601,8 +601,8 @@ MINIVM_trap1_dump:
 	r1 = s20 /* ipendad */
 	r1 = extractu(r1, #16, #16)
 	r2 = imask
-	r3 = iel
-	r4 = iahl
+	r3 = s24
+	r4 = s26
 	jump MINIVM_trap1_done
 
 
@@ -1190,9 +1190,9 @@ vm_bootup_code:
 	syscfg = r0
 	isync
 	r0 = #-1
-	iahl = r0
+	s26 = r0
 
-	iel = r0
+	s24 = r0
 	r0 = #-1
 	{
 		r9.h = #hi(MINIVM_event_vectors)
