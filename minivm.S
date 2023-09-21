@@ -625,8 +625,10 @@ MINIVM_trap1tab:
 	.size MINIVM_handle_trap1, .-MINIVM_handle_trap1
 
 MINIVM_trap1_dump:
-	r0 = ipend
-	r1 = iad
+	r0 = s20 /* ipendad */
+	r0 = extractu(r0, #16, #0)
+	r1 = s20 /* ipendad */
+	r1 = extractu(r1, #16, #16)
 	r2 = imask
 	r3 = iel
 	r4 = iahl
@@ -858,7 +860,8 @@ MINIVM_intop_get:
 
 MINIVM_intop_peek:
 	/* cl0 IPEND */
-	r10 = ipend
+	r10 = s20 /* ipendad */
+	r10 = extractu(r10, #16, #0) 
 	r0 = cl0(r10)
 	p0 = cmp.eq(r0,#32)
 	if (p0) r0 = #-1
@@ -868,12 +871,14 @@ MINIVM_intop_status:
 	/* tstbit IPEND/IAD/IMASK */
 	r13 = #1
 	r12 = r1
-	r11 = iad
+	r11 = s20 /* ipendad */
+	r11 = extractu(r11, #16, #16) 
 	r10 = extractu(r11,r13:12)
 	r11 = imask
 	r11 = extractu(r11,r13:12)
 	r10 = addasl(r11,r10,#1)
-	r11 = ipend
+	r11 = s20 /* ipendad */
+	r11 = extractu(r11, #16, #0) 
 	r11 = extractu(r11,r13:12)
 	r10 = addasl(r11,r10,#1)
 	r11 = #6
