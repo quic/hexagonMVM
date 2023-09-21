@@ -256,11 +256,11 @@ MINIVM_handle_tlbmissrw:
 		p0 = bitsclr(r30,r23)
 	}
 	{
-		if (p0) jump MINIVM_pagefault	// no RWX bits, so pagefault
 		p1 = tstbit(r30,#5)		// U bit set?
 		r21:20 = combine(r30,r30)
 		r22 = #MAKEWORK(MINIVM_tlbidx)
 	}
+	if (p0) jump MINIVM_pagefault	// no RWX bits, so pagefault
 	{
 		p1 = or(p2,p1)			// Supervisor Mode, or User and User?
 		if (!p1.new) jump:nt MINIVM_nouser	// No, User permission violation
@@ -347,12 +347,13 @@ MINIVM_pagefault:
 	/* P3 is TRUE if it was a TLB miss X */
 	/* We signify page fault as either X, LD, or ST protection violation */
 	/* We also need to unlock the tlb lock */
+	r5 = r31
 	{
 		memd(r24+#CONTEXT_r1514) = r15:14
 		r31:30 = memd(r24+#CONTEXT_tlb_r3130)
-		r15 = r31
 		r20 = #MAKEWORK(MINIVM_lock)
 	}
+	r15 = r5
 	r14 = ssr
 	{
 		memd(r24+#CONTEXT_r1312) = r13:12
@@ -387,12 +388,13 @@ MINIVM_nouser:
 	/* Detect if page fault was from VM (look @ ELR)... if so, fatal */
 	/* P3 is TRUE if it was a TLB miss X */
 	/* We also need to unlock the tlb lock */
+	r5 = r31
 	{
 		memd(r24+#CONTEXT_r1514) = r15:14
 		r31:30 = memd(r24+#CONTEXT_tlb_r3130)
-		r15 = r31
 		r20 = #MAKEWORK(MINIVM_lock)
 	}
+	r15 = r5
 	r14 = ssr
 	{
 		memd(r24+#CONTEXT_r1312) = r13:12
@@ -642,8 +644,7 @@ MINIVM_start:
 	}
 	{
 		p0 = cmp.eq(r11,#6)
-		if (p0.new) r0 = #-1
-		if (p0.new) jump:nt MINIVM_trap1_done
+		if (p0.new) jump:nt all_6_enabled
 		r12 = #lo(MINIVM_context_t0)
 	}
 	r12 += mpyi(r10,r11)
@@ -661,6 +662,9 @@ MINIVM_start:
 		r0 = r11
 		jump MINIVM_trap1_done
 	}
+all_6_enabled:
+	r0 = #-1
+	jump MINIVM_trap1_done
 
 
 /* register new PTB 
@@ -673,9 +677,9 @@ MINIVM_register_ptb:
 	{
 		memw(r24+#CONTEXT_gptb) = r0
 		r10 = #TLB_FIRST_REPLACEABLE_ENTRY
-		r13 = #0
 		r12 = #MAKEWORK(MINIVM_lock)
 	}
+	r13 = #0
 9:					// get lock
 	r11 = memw_locked(r12)
 	{
