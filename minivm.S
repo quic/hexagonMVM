@@ -1297,7 +1297,7 @@ vm_bootup_code:
 	tlbw(r5:4, r3)
 
 	r0 = #0x7f
-	r0.h = #0x3			//  l2 cache 256kB
+	r0.h = #0x5			//  l2 cache 1024kB
 	syscfg = r0
 
 	r0 = #1				// turn on isdb
