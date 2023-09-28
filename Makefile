@@ -1,6 +1,6 @@
 ARCH=hexagon-
 CC=${ARCH}clang
-LD=${ARCH}link
+LD=${CC}
 OBJCOPY=${ARCH}objcopy
 
 ARCHV?=73
@@ -10,11 +10,15 @@ all: minivm test
 
 CFLAGS=-mv${ARCHV} -O0 -g -DGUEST_ENTRY=${GUEST_ENTRY}
 ASFLAGS=${CFLAGS}
+LDFLAGS=-nostdlib
 
 OBJS=minivm.o
 
 minivm: ${OBJS} Makefile hexagon.lds
-	${LD} -o $@ -T hexagon.lds ${OBJS}
+	${LD} -o $@ -T hexagon.lds ${OBJS} ${LDFLAGS}
+
+hello: hello.c Makefile
+	${CC} ${CFLAGS} -o $@ $<
 
 .PHONY: test FORCE
 test: minivm hello FORCE
