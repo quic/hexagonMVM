@@ -1135,7 +1135,7 @@ vm_newcpu_startup:
 	memd(r24+#0x70) = r11:10
 	r29 = memw(r24+#4)
 	r0 = ssr
-	r1 = extractu(r0,#3,#19)
+	r1 = s8
 	r0 = insert(r1,#3,#8)		// ASID per-thread bits
 	r1 = #3
 	r0 = insert(r1,#3,#16)		// EX/UM
@@ -1152,8 +1152,7 @@ vm_newcpu_startup:
 
 vm_bootup_code:
 	r10 = pc
-	r11 = ssr
-	r11 = extractu(r11,#3,#19)
+	r11 = s8
 	p0 = cmp.eq(r11,#0)
 	if (!p0) jump vm_newcpu_startup
 	
