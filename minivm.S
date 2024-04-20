@@ -627,8 +627,7 @@ MINIVM_yield:
 	jump MINIVM_trap1_done
 
 MINIVM_vpid:	// return hw tnum
-	r0 = ssr
-	r0 = extractu(r0,#3,#19)
+	r0 = s8
 	jump MINIVM_trap1_done
 
 MINIVM_setregs:	// set guest regs
