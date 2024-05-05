@@ -26,14 +26,6 @@
 #define CONTEXT_gsp       0x40
 #define CONTEXT_gevb      0x44
 #define CONTEXT_gptb      0x48
-#define CONTEXT_g10       0x50
-#define CONTEXT_g32       0x58
-#define CONTEXT_ETAB      0x60
-#define CONTEXT_RESET_VEC (CONTEXT_ETAB + 0)
-#define CONTEXT_FATAL_VEC (CONTEXT_ETAB + 1*4)
-#define CONTEXT_EXCEPTION_VEC (CONTEXT_ETAB + 2*4)
-#define CONTEXT_TRAP0_VEC (CONTEXT_ETAB + 3*4)
-#define CONTEXT_INTERRUPT_VEC (CONTEXT_ETAB + 5*4)
 
 #define FAKE_GUEST_SUPERVISOR_BIT 13
 
@@ -559,35 +551,35 @@ MINIVM_handle_trap0:
 MINIVM_common_user_push:
 	r10 = ssr
 	r13 = badva
+	r12 = gosp
 	{
-		r12 = memw(r24+#CONTEXT_g32)				// osp
 		p0 = tstbit(r10, #SSR_GM_BIT)
 		p1 = tstbit(r10, #SSR_IE_BIT)
 	}
-	{
+	{							// if not in guest mode swap(r29, gosp)
 		if (!p0) r29 = r12
 		if (!p0) r12 = r29
 	}
 	r10 = setbit(r10, #SSR_GM_BIT)
 	r10 = setbit(r10, #SSR_UM_BIT)
 	r10 = setbit(r10, #SSR_EX_BIT)
-
 	ssr = r10
-	r11 = mux(p0, #0, #2)
+
+	r11 = mux(p0, #0, #2)					// GSR UM bit
 	{
-		if (p1) r10 = add(r11,#1)
-		if (!p1) r10 = r11
-		r11 = zxtb(r10)
-		memd(r24+#CONTEXT_g32) = r13:12
+		if (p1) r10 = add(r11,#1)			// GSR IE bit
+		if (!p1) r10 = r11				// GSR IE bit
+		r11 = zxtb(r10)					// cause code from SSR
+		gbadva = r13
 	}
 	{
-		r11 = insert(r10,#2,#GUEST_CAUSE_IE_BIT)
+		r11 = insert(r10, #2, #GUEST_CAUSE_IE_BIT)	// Insert UM:IE bits
 		r12 = memw(r24+#CONTEXT_gevb)
 	}
 	r10 = elr
 	{
-		memd(r24+#CONTEXT_g10) = r11:10
-		r10 = add(r14,r12)
+		g1:0 = r11:10
+		r10 = add(r14, r12)
 		r13:12 = memd(r24+#CONTEXT_r1312)
 	}
 	elr = r10
@@ -702,13 +694,13 @@ MINIVM_vpid:	// return hw tnum
 	jump MINIVM_trap1_done
 
 MINIVM_setregs:	// set guest regs
-	memd(r24+#CONTEXT_g10) = r1:0
-	memd(r24+#CONTEXT_g32) = r3:2
+	g1:0 = r1:0
+	g3:2 = r3:2
 	jump MINIVM_trap1_done
 
 MINIVM_getregs:	// return guest regs
-	r1:0 = memd(r24+#CONTEXT_g10)
-	r3:2 = memd(r24+#CONTEXT_g32)
+	r1:0 = g1:0
+	r3:2 = g3:2
 	jump MINIVM_trap1_done
 
 MINIVM_wait:
@@ -1069,21 +1061,25 @@ MINIVM_cachectl_pasync:
 	.falign
 MINIVM_return:
 	r14 = ssr
+	r12 = gosp
 	{
-		r12 = memw(r24+#CONTEXT_g32)		//r2: gosp
-		r11:10 = memd(r24+#CONTEXT_g10)		//gssr:gelr
+		r11:10 = g1:0                   	// gsr:gelr
 		r13 = #0x3 				// -- -- EX UM
 	}
 	{
-		p0 = tstbit(r11,#GUEST_CAUSE_UM_BIT)
-		p1 = tstbit(r11,#GUEST_CAUSE_IE_BIT)
+		p0 = tstbit(r11, #GUEST_CAUSE_UM_BIT)
+		p1 = tstbit(r11, #GUEST_CAUSE_IE_BIT)
 		if (p1.new) r13 = #0x7  		// -- IE EX UM
 	}
 	{
 		if (!p0) r13 = add(r13, #0x8)		// GM IE EX UM
-		if (p0) memw(r24+#CONTEXT_g32) = r29	// user mode: switch stacks
-		if (p0) r29 = r12
+		if (!p0) jump 1f
 	}
+	{						// user mode: switch stacks
+		gosp = r29
+		r29 = r12
+	}
+1:
 	elr = r10
 	{
 		p3:0 = r15
@@ -1095,7 +1091,7 @@ MINIVM_return:
 		r15:14 = memd(r24+#CONTEXT_r1514)
 		r11:10 = memd(r24+#CONTEXT_r1110)
 	}
-	crswap(r24,sgp)
+	crswap(r24, sgp)
 	rte
 
 /* 
