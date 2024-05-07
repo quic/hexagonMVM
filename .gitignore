@@ -2,3 +2,15 @@ minivm
 hello
 minivm.o
 tags
+*.a
+*.so
+*.so.?*
+*.dll
+*.exe
+*.dylib
+*~
+*.swp
+*.pyc
+__pycache__
+.DS_Store
+
