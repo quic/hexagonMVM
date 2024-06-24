@@ -9,9 +9,11 @@ This project is [licensed](LICENSE) with the BSD 3-clause license.
 
 ## Status
 
-The current status is the minivm can execute the first test (first.S).
-It is a simple test that prints "Hello!" and exits.  Run "make test" to see
-it in action.
+minivm can run some simple tests with `make test`:
+
+- `first.S`: prints "Hello!" and exits.
+- `test_mmu.S`: has a user space that prints "Hello!" and tests some privilege
+  exceptions.
 
 You can attach the LLDB debugger as follows
 
@@ -19,4 +21,4 @@ You can attach the LLDB debugger as follows
 
 And in another tab:
 
-    $ make dbg LLDB_OPTS="-o 'break set -a 0xc0000ac4' -o c -o stepi"
+    $ make dbg LLDB_OPTS="-o 'break set -a 0x20000000' -o c"
