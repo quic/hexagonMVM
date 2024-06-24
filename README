@@ -1,12 +1,12 @@
-The current status is the minivm can execute the first test (first.S).
-It is a simple test that prints "Hello!" and exits.  Run "make test" to see
-it in action.
+The current status is the minivm can execute the MMU test (test_mmu.S).
+It is a simple test with a user space that prints "Hello!" and tests
+some privilege exceptions.  Run "make test" to see it in action.
 
 
-You can attach the LLDB debugger as follows
+You can attach the LLDB debugger at the beginning of user space as follows
 
 $ make test QEMU_OPTS='-s -S'
 
 And in another tab:
 
-$ make dbg LLDB_OPTS="-o 'break set -a 0xc0000ac4' -o c -o stepi"
+$ make dbg LLDB_OPTS="-o 'break set -a 0x20000000' -o c"

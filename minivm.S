@@ -55,8 +55,6 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define CONTEXT_gevb      0x44
 #define CONTEXT_gptb      0x48
 
-#define FAKE_GUEST_SUPERVISOR_BIT 13
-
 #define SSR_CAUSE_OFF        0
 #define SSR_CAUSE_WIDTH      8
 #define SSR_ASID_OFF         8
@@ -92,6 +90,14 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define TLB_PGSIZE_256M          256
 #define TLB_PGSIZE_1G            512
 
+// TLB cache attributes
+#define TLB_C_WB_NON		0
+#define TLB_C_WT_NON		1
+#define TLB_C_DEV		4
+#define TLB_C_WT_C		5
+#define TLB_C_UNC		6
+#define TLB_C_WB_C		7
+
 // TLB bitfield definitions
 //     For those in TLBHI, subtract 32 from the offset
 #define TLB_CCCC_OFF             24
@@ -120,6 +126,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define PTE_PGSIZE_INVALID   	7
 
 // PTE bitfield definitions
+#define PTE_PGSIZE_OFF		0
+#define PTE_PGSIZE_WIDTH	3
 #define PTE_U_BIT            	5
 #define PTE_CCC_OFF          	6
 #define PTE_CCC_WIDTH        	3
@@ -127,9 +135,14 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define PTE_W_BIT            	10
 #define PTE_X_BIT            	11
 
-#define HVM_GENERAL_EXCEPTION_PROT_EX			0x11
-#define HVM_GENERAL_EXCEPTION_PROT_RD			0x22
-#define HVM_GENERAL_EXCEPTION_PROT_WR			0x23
+#define HVM_EXCP_PROT_EX		0x11
+#define HVM_EXCP_PROT_UEX		0x14
+#define HVM_EXCP_PROT_RD		0x22
+#define HVM_EXCP_PROT_WR		0x23
+#define HVM_EXCP_PROT_URD		0x24
+#define HVM_EXCP_PROT_UWR		0x25
+
+#define HEX_CAUSE_TLBMISSRW_READ			0x070
 
 #define PAGE_TABLE_VA		0xfffd0000
 
@@ -227,16 +240,18 @@ MINIVM_handle_tlbmissx:
 		if (p1.new) jump:nt 1f	// icinva.. badaddr in badva already
 		if (p1.new) r30 = memw(r24+#CONTEXT_gptb)
 	}
+
+	r30 = ssr
+	r30 = extractu(r30, #1, #22)	// HW prefetch bit
+	p1 = cmp.eq(r30, #1)
+	if (p1) jump:nt assign_badva1
 	r30 = elr
 	if (p0) r30 = add(r30,#12)
-
-	r6 = ssr
-	r6 = extractu(r6, #1, #22)	// HW prefetch bit
-	p0 = cmp.eq(r6, #1)
-	if (p0) jump:nt assign_badva1
 	badva0 = r30
 	jump badva_done
 assign_badva1:
+	r30 = elr
+	if (p0) r30 = add(r30,#12)
 	badva1 = r30
 badva_done:
 
@@ -261,26 +276,28 @@ MINIVM_handle_tlbmissrw:
 	/* r31 is saved predicates */
 	/* r30 set to gptb */
 	/* P3 set if X permission */
-	{
-		memd(r24+#CONTEXT_tlb_r2928) = r29:28
-		r29.h = #hi(0x300fffe0)			// valid global 0xfffe0000
-	}
-	{
-		memd(r24+#CONTEXT_tlb_r2322) = r23:22
-		r29.l = #lo(0x300fffe0)
-		r28 = lsr(r30,#12)			// PPN
-		r23 = #(0x002+(7<<6))			// no perm, ccc=7, pgsize=64k
-	}
-	{
-		r28 |= asl(r23,#20)			// OR in bits
-		r23 = #TLB_TEMP_ENTRY
-		r30.h = #0xfffe				// replace upper bits
-		r22 = ##MINIVM_lock
-	}
-	{
-		memd(r24+#CONTEXT_tlb_r2120) = r21:20
-		r21 = #1
-	}
+	memd(r24+#CONTEXT_tlb_r2928) = r29:28
+	memd(r24+#CONTEXT_tlb_r2322) = r23:22
+	memd(r24+#CONTEXT_tlb_r2120) = r21:20
+
+	// Create a TLB entry to read the page table
+	r28 = lsr(r30, #TARGET_PAGE_BITS)
+	r28 = asl(r28, #1)			// Make room for page size bits
+	r28 = or(r28, #TLB_PGSIZE_64K)
+	r23 = #TLB_C_WB_C
+	r28 = insert(r23, #TLB_CCCC_WIDTH, #TLB_CCCC_OFF)
+	r23 = #0x6                         // X:0 W:1 R:1 U:0
+	r28 = insert(r23, #TLB_XWRU_WIDTH, #TLB_XWRU_OFF)
+
+	r29 = ##(PAGE_TABLE_VA >> TARGET_PAGE_BITS)
+	// ASID, AA, XPB are all zero
+	r23 = #3                           	// V:1 G:1
+	r29 = insert(r23, #TLB_VG_WIDTH, #TLB_VG_OFF)
+
+	r30.h = #HI(PAGE_TABLE_VA)		// replace upper bits
+
+	r22 = ##MINIVM_lock
+	r21 = #1
 1:
 	r20 = memw_locked(r22)
 	{
@@ -289,19 +306,19 @@ MINIVM_handle_tlbmissrw:
 	}
 	memw_locked(r22,p0) = r21			// write 1
 	if (!p0) jump 1b
-	r3 = r23
-	r5 = r29
-	r4 = r28
-	tlbw(r5:4, r3)
-	r29 = ssr
+
+	r3 = #TLB_TEMP_ENTRY
+	tlbw(r29:28, r3)
+
+	r21 = ssr
 	r28 = badva
 	{
-		p2 = tstbit(r29,#FAKE_GUEST_SUPERVISOR_BIT)
+		p2 = tstbit(r21, #SSR_GM_BIT)		// guest mode ??
 		r30 = tableidxw(r28,#10,#22)		// l1 page entry addr
 	}
 	{
 		r30 = memw(r30)				// get L1 page entry
-		r29 = extractu(r29,#6,#8)		// get ASID
+		r21 = extractu(r21, #SSR_ASID_WIDTH, #SSR_ASID_OFF)
 		r20 = #0
 		r23 = #10
 	}
@@ -318,11 +335,9 @@ MINIVM_handle_tlbmissrw:
 	/* For L1 direct translations, save off the L1 entry and jump to appropriate code */
 	/* Otherwise, we want to extract 10-(2*SSS) bits from badva at offset 12+(2*SSS) 
 	 * and insert them at offset 2 of the (L1 entry & -16) ... */
-	/* Note: TLBHI should already be 0x300fffe0, tlbidx==1 */
 	{
 		p1 = tstbit(r30, #PTE_U_BIT)
 		r20 = insert(r30, #3, #1)	// LSB field * 2 (size)
-		r29 = add(r29,#0x200)		// set valid
 		r30 = and(r30,#-16)		// clear LSB field (size) + rsvd bit
 	}
 	{
@@ -336,22 +351,30 @@ MINIVM_handle_tlbmissrw:
 		if (!p0) r22 = #2
 		if (p0) r22 = r23		// dup l1
 	}
-	{
-		r30 = insert(r21,r23:22)	// insert them at offset 2 (word)
-		r23 = #(0x002+(7<<6))		// no perm, ccc=7, pgsize=64k
-		r29:28 = lsr(r29:28,#12)	// tlbhi in r28
-	}
-	r21 = lsr(r30, #TARGET_PAGE_BITS)	// ppn
-	{
-		r21 |= asl(r23,#20)		// bits
-		r30.h = #HI(PAGE_TABLE_VA)	// form l2 vaddr
-	}
-	r4 = r21
-	//  TLBHI still had the same value from previous tlbw (r30.h = 0xfffe)
-	tlbw(r5:4, r3)
+	r30 = insert(r21,r23:22)	// insert them at offset 2 (word)
+
+	// Create a TLB entry to read the L2 page table
+	r28 = lsr(r30, #TARGET_PAGE_BITS)
+	r28 = asl(r28, #1)			// Make room for page size bits
+	r28 = or(r28, #TLB_PGSIZE_64K)
+	r23 = #TLB_C_WB_C
+	r28 = insert(r23, #TLB_CCCC_WIDTH, #TLB_CCCC_OFF)
+	r23 = #0x6				// X:0 W:1 R:1 U:0
+	r28 = insert(r23, #TLB_XWRU_WIDTH, #TLB_XWRU_OFF)
+
+	r30.h = #HI(PAGE_TABLE_VA)	// form l2 vaddr
+
+	tlbw(r29:28, r3)
+
+	r29 = badva
+	r29 = lsr(r29, #TARGET_PAGE_BITS)	// tlbhi in r29
+	r29 = insert(r21, #TLB_ASID_WIDTH, #TLB_ASID_OFF)
+	r23 = #3				// V:1 G:1
+	r29 = insert(r23, #TLB_VG_WIDTH, #TLB_VG_OFF)
+
 	{
 		r30 = memw(r30)			// L2 entry
-		r23 = #0x0e00			// mask to check RWX
+		r23 = #(0x7 << PTE_R_BIT)	// mask to check RWX
 	}
 	{
 		r30 = tableidxb(r20,#5,#1)	// r20 >> 1 == size, clear bits 3,4; no T in v2
@@ -359,33 +382,39 @@ MINIVM_handle_tlbmissrw:
 	}
 	{
 		p1 = tstbit(r30, #PTE_U_BIT)
-		r21:20 = combine(r30,r30)
-		r22 = ##MINIVM_tlbidx
+		r20 = r30
 	}
 	if (p0) jump MINIVM_pagefault	// no RWX bits, so pagefault
 	{
 		p1 = or(p2,p1)			// Supervisor Mode, or User and User?
 		if (!p1.new) jump:nt MINIVM_nouser	// No, User permission violation
-		r30 = memw(r22)			// get index
+		r30 = memw(##MINIVM_tlbidx)
 	}
 1:
-	// r21:20 has duplicate PTE
-	// R28 has tlbhi
-	{
-		r21:20 = lsr(r21:20,#12)	// tlblo in r20
-		p1 = cmp.gt(r30,#TLB_LAST_REPLACEABLE_ENTRY-1)
-	}
-	r5 = r28
-	r21 = tlbp(r5)
+	// r20 has PTE
+	// R29 has tlbhi
+	r28 = lsr(r20, #TARGET_PAGE_BITS)	// tlblo in r28
+	r28 = asl(r28, #1)			// Make room for page size bits
+	r23 = extractu(r20, #PTE_PGSIZE_WIDTH, #PTE_PGSIZE_OFF)
+	r28 = setbit(r28, r23)			// r28 |= 1 << r23
+	r23 = #TLB_C_WB_C
+	r28 = insert(r23, #TLB_CCCC_WIDTH, #TLB_CCCC_OFF)
+	r23 = extractu(r20, #3, #PTE_R_BIT)	// XWR bits
+	r23 = asl(r23, #1)
+	r22 = extractu(r20, #1, #PTE_U_BIT)
+	r23 = or(r23, r22)
+	r28 = insert(r23, #TLB_XWRU_WIDTH, #TLB_XWRU_OFF)
+
+	r21 = tlbp(r29)
+	p1 = cmp.gt(r30,#TLB_LAST_REPLACEABLE_ENTRY-1)
 	{
 		p0 = tstbit(r21,#31)
 		if (!p0.new) jump:nt 2f		// tlbp returned not found ??
 		if (!p1) r21 = add(r30,#1)
 		if (p1) r21 = #TLB_FIRST_REPLACEABLE_ENTRY
 	}
-	memw(r22) = r21			// save new index
-	r4 = r20
-	tlbw(r5:4, r21)
+	memw(##MINIVM_tlbidx) = r21
+	tlbw(r29:28, r21)
 2:
 	{
 		r30 = ##MINIVM_lock
@@ -408,10 +437,10 @@ MINIVM_handle_tlbmissrw:
 6:
 	/* Just use the L1 entry */
 	/* Also might be invalid... */
+	/* r21 has ASID */
 	/* r30 has the L1 entry with size masked off */
 	/* r20 has 2*SSS */
 	/* P1 has bit 5 == true (U) */
-	/* On exit, r22 must hold MINIVM_tlbidx */
 	{
 		p0 = cmp.eq(r20, #PTE_PGSIZE_INVALID * 2)
 		if (p0.new) jump:nt MINIVM_pagefault	// SSS = 7
@@ -425,14 +454,17 @@ MINIVM_handle_tlbmissrw:
 	{
 		if (!p1) jump MINIVM_nouser
 		r30 = tableidxb(r20,#3,#1)		// reinsert SSS bits
-		r22 = ##MINIVM_tlbidx
 	}
 	{
-		r30 = memw(r22)
-		r21:20 = combine(r30,r30)
-		r29:28 = lsr(r29:28,#12)	// tlbhi in r28
-		jump 1b
+		r30 = memw(##MINIVM_tlbidx)
+		r20 = r30
 	}
+	r29 = badva
+	r29 = lsr(r29, #TARGET_PAGE_BITS)			// tlbhi in r28
+	r29 = insert(r20, #TLB_ASID_WIDTH, #TLB_ASID_OFF)
+	r15 = #3                           // V:1 G:1
+	r29 = insert(r15, #TLB_VG_WIDTH, #TLB_VG_OFF)
+	jump 1b
 	.size MINIVM_handle_tlbmissrw, .-MINIVM_handle_tlbmissrw
 
 
@@ -441,26 +473,24 @@ MINIVM_pagefault:
 	/* p3:0 saved in r31 */
 	/* r20-r23, r28-r31 saved in tlb locations */
 	/* r24/sgp swapped */
-	/* R28 has badva */
-	/* R29 should have ASID */
 	/* Detect if page fault was from VM (look @ ELR)... if so, fatal */
 	/* P3 is TRUE if it was a TLB miss X */
 	/* We signify page fault as either X, LD, or ST protection violation */
 	/* We also need to unlock the tlb lock */
-	r5 = r31
 	{
 		memd(r24+#CONTEXT_r1514) = r15:14
 		r31:30 = memd(r24+#CONTEXT_tlb_r3130)
-		r20 = ##MINIVM_lock
+		r15 = r31
 	}
-	r15 = r5
 	r14 = ssr
 	{
 		memd(r24+#CONTEXT_r1312) = r13:12
 		r29:28 = memd(r24+#CONTEXT_tlb_r2928)
-		r12 = mux(p3, #HVM_GENERAL_EXCEPTION_PROT_EX, #HVM_GENERAL_EXCEPTION_PROT_RD)
+		r12 = mux(p3, #HVM_EXCP_PROT_EX, #HVM_EXCP_PROT_RD)
 		r13 = zxtb(r14)
 	}
+	p0 = cmp.eq(r13, #HEX_CAUSE_TLBMISSRW_READ)
+	r13 = mux(p0, #0, #1)
 	{
 		memd(r24+#CONTEXT_r1110) = r11:10
 		r23:22 = memd(r24+#CONTEXT_tlb_r2322)
@@ -471,8 +501,8 @@ MINIVM_pagefault:
 		r21 = #0
 	}
 	ssr = r14
+	memw(##MINIVM_lock) = r21				// unlock
 	{
-		memw(r20) = r21				// unlock
 		r14 = #(EVENT_NUMBER_EXCEPTION*4)
 		r21:20 = memd(r24+#CONTEXT_tlb_r2120)
 		jump MINIVM_common_user_push
@@ -488,20 +518,20 @@ MINIVM_nouser:
 	/* Detect if page fault was from VM (look @ ELR)... if so, fatal */
 	/* P3 is TRUE if it was a TLB miss X */
 	/* We also need to unlock the tlb lock */
-	r5 = r31
 	{
 		memd(r24+#CONTEXT_r1514) = r15:14
 		r31:30 = memd(r24+#CONTEXT_tlb_r3130)
-		r20 = ##MINIVM_lock
+		r15 = r31
 	}
-	r15 = r5
 	r14 = ssr
 	{
 		memd(r24+#CONTEXT_r1312) = r13:12
 		r29:28 = memd(r24+#CONTEXT_tlb_r2928)
-		r12 = mux(p3,#0x14,#0x24)
+		r12 = mux(p3, #HVM_EXCP_PROT_UEX, #HVM_EXCP_PROT_URD)
 		r13 = zxtb(r14)
 	}
+	p0 = cmp.eq(r13, #HEX_CAUSE_TLBMISSRW_READ)
+	r13 = mux(p0, #0, #1)
 	{
 		memd(r24+#CONTEXT_r1110) = r11:10
 		r23:22 = memd(r24+#CONTEXT_tlb_r2322)
@@ -512,9 +542,9 @@ MINIVM_nouser:
 		r21 = #0
 	}
 	ssr = r14
+	r14 = #EVENT_NUMBER_EXCEPTION*4
 	{
-		memw(r20) = r21				// unlock
-		r14 = #EVENT_NUMBER_EXCEPTION*4
+		memw(##MINIVM_lock) = r21		// unlock
 		r21:20 = memd(r24+#CONTEXT_tlb_r2120)
 		jump MINIVM_common_user_push
 	}
@@ -585,15 +615,16 @@ MINIVM_common_user_push:
 		p1 = tstbit(r10, #SSR_IE_BIT)
 	}
 	{							// if not in guest mode swap(r29, gosp)
+		r11 = mux(p0, #0, #2)				// GSR UM bit
 		if (!p0) r29 = r12
 		if (!p0) r12 = r29
 	}
 	r10 = setbit(r10, #SSR_GM_BIT)
 	r10 = setbit(r10, #SSR_UM_BIT)
 	r10 = setbit(r10, #SSR_EX_BIT)
+	r10 = clrbit(r10, #SSR_IE_BIT)
 	ssr = r10
 
-	r11 = mux(p0, #0, #2)					// GSR UM bit
 	{
 		if (p1) r10 = add(r11,#1)			// GSR IE bit
 		if (!p1) r10 = r11				// GSR IE bit
@@ -779,7 +810,6 @@ MINIVM_register_ptb:
 		r10 = #TLB_FIRST_REPLACEABLE_ENTRY
 		r12 = ##MINIVM_lock
 	}
-	r13 = #0
 9:					// get lock
 	r11 = memw_locked(r12)
 	{
@@ -788,17 +818,16 @@ MINIVM_register_ptb:
 	}
 	memw_locked(r12,p0) = r12
 	if (!p0) jump 9b
-	r4 = r13
-	r5 = r13
+	r13:12 = #0
 1:
-	tlbw(r5:4, r10)
+	tlbw(r13:12, r10)
 	{
 		r10 = add(r10,#1)
 		p0 = cmp.gt(r10,#TLB_LAST_REPLACEABLE_ENTRY-1)
 		if (!p0.new) jump:t 1b
 	}
 	{
-		memw(r12) = r13		// unlock
+		memw(##MINIVM_lock) = r12		// unlock
 		r0 = #0
 		jump MINIVM_trap1_done
 	}
@@ -1311,7 +1340,7 @@ vm_bootup_code:
 	r4 = lsr(r10, #TARGET_PAGE_BITS)
 	r4 = asl(r4, #1)                   // Make room for page size bits
 	r4 = or(r4, #TLB_PGSIZE_64K)
-	r15 = #7                           // TODO Make #defines for these values
+	r15 = #TLB_C_WB_C
 	r4 = insert(r15, #TLB_CCCC_WIDTH, #TLB_CCCC_OFF)
 	r15 = #0x6                         // X:0 W:1 R:1 U:0
 	r4 = insert(r15, #TLB_XWRU_WIDTH, #TLB_XWRU_OFF)
@@ -1329,9 +1358,9 @@ vm_bootup_code:
 	r4 = ##(GUEST_ENTRY >> TARGET_PAGE_BITS)
 	r4 = asl(r4, #1)                   // Make room for page size bits
 	r4 = or(r4, #TLB_PGSIZE_16M)
-	r15 = #7                           // TODO Make #defines for these values
+	r15 = #TLB_C_WB_C
 	r4 = insert(r15, #TLB_CCCC_WIDTH, #TLB_CCCC_OFF)
-	r15 = #0xe                         // X:1 W:1 R:1 U:1
+	r15 = #0xe                         // X:1 W:1 R:1 U:0
 	r4 = insert(r15, #TLB_XWRU_WIDTH, #TLB_XWRU_OFF)
 
 	r5 = ##(GUEST_ENTRY >> TARGET_PAGE_BITS)
@@ -1346,7 +1375,7 @@ vm_bootup_code:
 	r4 = lsr(r10, #TARGET_PAGE_BITS)
 	r4 = asl(r4, #1)                   // Make room for page size bits
 	r4 = or(r4, #TLB_PGSIZE_64K)
-	r15 = #7                           // TODO Make #defines for these values
+	r15 = #TLB_C_WB_C
 	r4 = insert(r15, #TLB_CCCC_WIDTH, #TLB_CCCC_OFF)
 	r15 = #0x8                         // X:1 W:0 R:0 U:0
 	r4 = insert(r15, #TLB_XWRU_WIDTH, #TLB_XWRU_OFF)
@@ -1391,11 +1420,6 @@ vm_bootup_code:
 	elr =  r31
 	rte
 
-	.p2align 3
-	.word 0,0,0,0,0,0,0,0
-	.word 0,0,0,0,0,0,0,0
-	.word 0,0,0,0,0,0,0,0
-	.word 0,0,0,0,0,0,0,0
 
 #define XLAT16M(VAL) .word (VAL | 6); \
 	.word (VAL | 6); \
