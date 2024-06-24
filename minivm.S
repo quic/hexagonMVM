@@ -9,6 +9,8 @@
 #define TLB_FIRST_REPLACEABLE_ENTRY 2
 #define TLB_LAST_REPLACEABLE_ENTRY 63
 
+#define NUM_PROCESSORS 6
+
 #define EVENT_NUMBER_FATAL 1
 #define EVENT_NUMBER_EXCEPTION 2
 #define EVENT_NUMBER_TRAP0 5
@@ -44,6 +46,11 @@
 #define SSR_EX_BIT           17
 #define SSR_IE_BIT           18
 #define SSR_GM_BIT           19
+
+#define IPENDAD_IPEND_OFF    0
+#define IPENDAD_IPEND_WIDTH  16
+#define IPENDAD_IAD_OFF      16
+#define IPENDAD_IAD_WIDTH    16
 
 #define CACHEIDX_MAX 2048
 
@@ -82,6 +89,29 @@
 #define TLB_VG_OFF               (62 - 32)
 #define TLB_VG_WIDTH             2
 
+// PTE page size indicators
+#define PTE_PGSIZE_4K        	0
+#define PTE_PGSIZE_16K       	1
+#define PTE_PGSIZE_64K       	2
+#define PTE_PGSIZE_256K      	3
+#define PTE_PGSIZE_1M        	4
+#define PTE_PGSIZE_4M        	5
+#define PTE_PGSIZE_16M       	6
+#define PTE_PGSIZE_INVALID   	7
+
+// PTE bitfield definitions
+#define PTE_U_BIT            	5
+#define PTE_CCC_OFF          	6
+#define PTE_CCC_WIDTH        	3
+#define PTE_R_BIT            	9
+#define PTE_W_BIT            	10
+#define PTE_X_BIT            	11
+
+#define HVM_GENERAL_EXCEPTION_PROT_EX			0x11
+#define HVM_GENERAL_EXCEPTION_PROT_RD			0x22
+#define HVM_GENERAL_EXCEPTION_PROT_WR			0x23
+
+#define PAGE_TABLE_VA		0xfffd0000
 
 	.section .vm_data,"awx",@progbits
 	.global MINIVM_event_vectors
@@ -181,7 +211,7 @@ MINIVM_handle_tlbmissx:
 	if (p0) r30 = add(r30,#12)
 
 	r6 = ssr
-	r6 = extractu(r6, #1, #22)
+	r6 = extractu(r6, #1, #22)	// HW prefetch bit
 	p0 = cmp.eq(r6, #1)
 	if (p0) jump:nt assign_badva1
 	badva0 = r30
@@ -270,13 +300,13 @@ MINIVM_handle_tlbmissrw:
 	 * and insert them at offset 2 of the (L1 entry & -16) ... */
 	/* Note: TLBHI should already be 0x300fffe0, tlbidx==1 */
 	{
-		p1 = tstbit(r30,#5)		// U bit
-		r20 = insert(r30,#3,#1)		// LSB field * 2 (size)
+		p1 = tstbit(r30, #PTE_U_BIT)
+		r20 = insert(r30, #3, #1)	// LSB field * 2 (size)
 		r29 = add(r29,#0x200)		// set valid
 		r30 = and(r30,#-16)		// clear LSB field (size) + rsvd bit
 	}
 	{
-		p0 = cmp.gt(r20,#4*2)		// L1 entry or invalid?
+		p0 = cmp.gt(r20, #PTE_PGSIZE_1M *2)	// L1 entry or invalid?
 		if (!p0.new) r23 = sub(r23,r20)		// width
 		if (!p0.new) r22 = add(r20,#12)		// offset
 	}
@@ -291,10 +321,10 @@ MINIVM_handle_tlbmissrw:
 		r23 = #(0x002+(7<<6))		// no perm, ccc=7, pgsize=64k
 		r29:28 = lsr(r29:28,#12)	// tlbhi in r28
 	}
-	r21 = lsr(r30,#12)			// ppn
+	r21 = lsr(r30, #TARGET_PAGE_BITS)	// ppn
 	{
 		r21 |= asl(r23,#20)		// bits
-		r30.h = #0xfffe			// form l2 vaddr
+		r30.h = #HI(PAGE_TABLE_VA)	// form l2 vaddr
 	}
 	r4 = r21
 	//  TLBHI still had the same value from previous tlbw (r30.h = 0xfffe)
@@ -304,11 +334,11 @@ MINIVM_handle_tlbmissrw:
 		r23 = #0x0e00			// mask to check RWX
 	}
 	{
-		r30 = tableidxb(r20,#5,#1)	// r20 >> 1 == size, clear bits 3,4; no T in v2 */
+		r30 = tableidxb(r20,#5,#1)	// r20 >> 1 == size, clear bits 3,4; no T in v2
 		p0 = bitsclr(r30,r23)
 	}
 	{
-		p1 = tstbit(r30,#5)		// U bit set?
+		p1 = tstbit(r30, #PTE_U_BIT)
 		r21:20 = combine(r30,r30)
 		r22 = ##MINIVM_tlbidx
 	}
@@ -329,13 +359,11 @@ MINIVM_handle_tlbmissrw:
 	r21 = tlbp(r5)
 	{
 		p0 = tstbit(r21,#31)
-		if (!p0.new) jump:nt 2f		// replaced while spinlocking, skip write
+		if (!p0.new) jump:nt 2f		// tlbp returned not found ??
 		if (!p1) r21 = add(r30,#1)
 		if (p1) r21 = #TLB_FIRST_REPLACEABLE_ENTRY
 	}
-	{
-		memw(r22) = r21			// save new index
-	}
+	memw(r22) = r21			// save new index
 	r4 = r20
 	tlbw(r5:4, r21)
 2:
@@ -365,9 +393,9 @@ MINIVM_handle_tlbmissrw:
 	/* P1 has bit 5 == true (U) */
 	/* On exit, r22 must hold MINIVM_tlbidx */
 	{
-		p0 = cmp.eq(r20,#0xe)
+		p0 = cmp.eq(r20, #PTE_PGSIZE_INVALID * 2)
 		if (p0.new) jump:nt MINIVM_pagefault	// SSS = 7
-		r21 = #0x0e00
+		r21 = #7 << PTE_R_BIT			// Bit mask for rwx
 		p1 = or(p1,p2)			// Supervisor Mode, or User and User?
 	}
 	{
@@ -410,7 +438,7 @@ MINIVM_pagefault:
 	{
 		memd(r24+#CONTEXT_r1312) = r13:12
 		r29:28 = memd(r24+#CONTEXT_tlb_r2928)
-		r12 = mux(p3,#0x11,#0x22)
+		r12 = mux(p3, #HVM_GENERAL_EXCEPTION_PROT_EX, #HVM_GENERAL_EXCEPTION_PROT_RD)
 		r13 = zxtb(r14)
 	}
 	{
@@ -460,7 +488,7 @@ MINIVM_nouser:
 		if (!p3) r12 = add(r12,r13)		// add cause if LD/ST (0=LD, 1=ST)
 	}
 	{
-		r14 = insert(r12,#8,#0)			// put CAUSE back into SSR
+		r14 = insert(r12, #SSR_CAUSE_WIDTH, #SSR_CAUSE_OFF)
 		r21 = #0
 	}
 	ssr = r14
@@ -652,9 +680,9 @@ MINIVM_trap1tab:
 
 MINIVM_trap1_dump:
 	r0 = s20 /* ipendad */
-	r0 = extractu(r0, #16, #0)
+	r0 = extractu(r0, #IPENDAD_IPEND_WIDTH, #IPENDAD_IPEND_OFF)
 	r1 = s20 /* ipendad */
-	r1 = extractu(r1, #16, #16)
+	r1 = extractu(r1, #IPENDAD_IAD_WIDTH, #IPENDAD_IAD_OFF)
 	r2 = imask
 	r3 = s24
 	r4 = s26
@@ -695,8 +723,8 @@ MINIVM_start:
 		r10 = #(MINIVM_context_t1-MINIVM_context_t0)
 	}
 	{
-		p0 = cmp.eq(r11,#6)
-		if (p0.new) jump:nt all_6_enabled
+		p0 = cmp.eq(r11,#NUM_PROCESSORS)
+		if (p0.new) jump:nt all_enabled
 		r12 = #(MINIVM_context_t0)
 	}
 	r12 += mpyi(r10,r11)
@@ -714,7 +742,7 @@ MINIVM_start:
 		r0 = r11
 		jump MINIVM_trap1_done
 	}
-all_6_enabled:
+all_enabled:
 	r0 = #-1
 	jump MINIVM_trap1_done
 
@@ -784,7 +812,7 @@ MINIVM_set_pcycles:
 MINIVM_getie:
 	r0 = ssr
 	{
-		r0 = extractu(r0,#1,#18)
+		r0 = extractu(r0, #1, #SSR_IE_BIT)
 		jump MINIVM_trap1_done
 	}
 
@@ -792,11 +820,11 @@ MINIVM_setie:
 	r10 = ssr
 	{
 		r1 = r10
-		r10 = insert(r0,#1,#18)
+		r10 = insert(r0, #1, #SSR_IE_BIT)
 	}
 	ssr = r10
 	{
-		r0 = extractu(r1,#1,#18)
+		r0 = extractu(r1, #1, #SSR_IE_BIT)
 		jump MINIVM_trap1_done
 	}
 
@@ -887,7 +915,7 @@ MINIVM_intop_get:
 MINIVM_intop_peek:
 	/* cl0 IPEND */
 	r10 = s20 /* ipendad */
-	r10 = extractu(r10, #16, #0) 
+	r10 = extractu(r10, #IPENDAD_IPEND_WIDTH, #IPENDAD_IPEND_OFF)
 	r0 = cl0(r10)
 	p0 = cmp.eq(r0,#32)
 	if (p0) r0 = #-1
@@ -898,13 +926,13 @@ MINIVM_intop_status:
 	r13 = #1
 	r12 = r1
 	r11 = s20 /* ipendad */
-	r11 = extractu(r11, #16, #16) 
+	r11 = extractu(r11, #IPENDAD_IAD_WIDTH, #IPENDAD_IAD_OFF)
 	r10 = extractu(r11,r13:12)
 	r11 = imask
 	r11 = extractu(r11,r13:12)
 	r10 = addasl(r11,r10,#1)
 	r11 = s20 /* ipendad */
-	r11 = extractu(r11, #16, #0) 
+	r11 = extractu(r11, #IPENDAD_IPEND_WIDTH, #IPENDAD_IPEND_OFF)
 	r11 = extractu(r11,r13:12)
 	r10 = addasl(r11,r10,#1)
 	r11 = #6
@@ -997,6 +1025,7 @@ MINIVM_cachectl:
 	}
 
 MINIVM_cachectl_pf:
+	// TODO This one isn't documented - what are bits 22-24 in the old SSR?
 	r10 = ssr
 	r10 = insert(r1,#3,#22)
 	ssr = r10
