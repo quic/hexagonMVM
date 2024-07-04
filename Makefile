@@ -33,19 +33,23 @@ first: first.S Makefile
 test_mmu: test_mmu.S Makefile
 	${CC} ${CFLAGS} -o $@ $< ${GUEST_LDFLAGS}
 
+test_interrupts: test_interrupts.S Makefile
+	${CC} ${CFLAGS} -o $@ $< ${GUEST_LDFLAGS}
+
 .PHONY: test FORCE
-test: minivm first test_mmu FORCE
+test: minivm first test_mmu test_interrupts FORCE
 	qemu-system-hexagon -M SA8775P_CDSP0 ${QEMU_OPTS} -device loader,addr=${GUEST_ENTRY},file=./first -kernel ./minivm
 	qemu-system-hexagon -M SA8775P_CDSP0 ${QEMU_OPTS} -device loader,addr=${GUEST_ENTRY},file=./test_mmu -kernel ./minivm
+	qemu-system-hexagon -M SA8775P_CDSP0 ${QEMU_OPTS} -device loader,addr=${GUEST_ENTRY},file=./test_interrupts -kernel ./minivm
 
 .PHONY: dbg
 dbg: FORCE
-	lldb -o 'file ./minivm' -o 'target modules add ./test_mmu' -o 'target modules load -s 0 --file ./test_mmu' -o 'gdb-remote localhost:1234' ${LLDB_OPTS}
+	lldb -o 'file ./minivm' -o 'target modules add ./test_interrupts' -o 'target modules load -s 0 --file ./test_interrupts' -o 'gdb-remote localhost:1234' ${LLDB_OPTS}
 
 minivm.bin: minivm
 	${OBJCOPY} -O binary $< $@
 
 clean:
-	rm -f *.o minivm first test_mmu minivm.bin ${OBJS}
+	rm -f *.o minivm first test_mmu test_interrupts minivm.bin ${OBJS}
 
 
