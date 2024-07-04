@@ -889,7 +889,6 @@ MINIVM_intop_globen:
 	/* ciad */
 	r10 = #0
 	r10 = setbit(r10,r1)
-	r10 = brev(r10)
 	ciad(r10)
 	r0 = #0
 	jump MINIVM_trap1_done
@@ -902,9 +901,7 @@ MINIVM_intop_globdis:
 MINIVM_intop_locen:
 	/* clrbit IMASK */
 	r10 = imask
-	r10 = brev(r10)
 	r10 = clrbit(r10,r1)
-	r10 = brev(r10)
 	imask = r10
 	r0 = #0
 	jump MINIVM_trap1_done
@@ -912,9 +909,7 @@ MINIVM_intop_locen:
 MINIVM_intop_locdis:
 	/* setbit IMASK */
 	r10 = imask
-	r10 = brev(r10)
 	r10 = setbit(r10,r1)
-	r10 = brev(r10)
 	imask = r10
 	r0 = #0
 	jump MINIVM_trap1_done
@@ -934,10 +929,10 @@ MINIVM_intop_get:
 	jump MINIVM_trap1_done
 
 MINIVM_intop_peek:
-	/* cl0 IPEND */
+	/* ct0 IPEND */
 	r10 = s20 /* ipendad */
 	r10 = extractu(r10, #IPENDAD_IPEND_WIDTH, #IPENDAD_IPEND_OFF)
-	r0 = cl0(r10)
+	r0 = ct0(r10)
 	p0 = cmp.eq(r0,#32)
 	if (p0) r0 = #-1
 	jump MINIVM_trap1_done
@@ -964,7 +959,6 @@ MINIVM_intop_post:
 	/* swi */
 	r10 = #0
 	r10 = setbit(r10,r1)
-	r10 = brev(r10)
 	swi(r10)
 	r0 = #0
 	jump MINIVM_trap1_done
@@ -973,9 +967,8 @@ MINIVM_intop_clear:
 	/* cswi */
 	r10 = #0
 	r10 = setbit(r10,r1)
-	r10 = brev(r10)
 	cswi(r10)
-	r0 = #1
+	r0 = #1			// TODO spec says we should return 0 (which is correct)
 	jump MINIVM_trap1_done
 
 MINIVM_setvec: // r0=vector address
