@@ -4,7 +4,7 @@ LD=${CC}
 OBJCOPY=${ARCH}objcopy
 
 ARCHV?=73
-GUEST_ENTRY?=0x10000000
+GUEST_ENTRY?=0xc0000000
 USER_TEXT?=0x20000000
 USER_RODATA?=0x20400000
 USER_DATA?=0x20800000
@@ -50,7 +50,7 @@ test: minivm first test_mmu test_interrupts test_processors FORCE
 
 .PHONY: dbg
 dbg: FORCE
-	lldb -o 'file ./minivm' -o 'target modules add ./test_processors' -o 'target modules load -s 0 --file ./test_processors' -o 'gdb-remote localhost:1234' ${LLDB_OPTS}
+	lldb -o 'file ./minivm' -o 'target modules add ./vmlinux' -o 'target modules load -s 0 --file ./vmlinux' -o 'gdb-remote localhost:1234' ${LLDB_OPTS}
 
 minivm.bin: minivm
 	${OBJCOPY} -O binary $< $@
