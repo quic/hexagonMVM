@@ -1,71 +1,13 @@
 
-#define vmrte                    trap1(#1)
-#define vmsetvec                 trap1(#2)
-#define vmsetie                  trap1(#3)
-#define vmgetie                  trap1(#4)
-#define vmintop                  trap1(#5)
-#define vmclrmap                 trap1(#10)
-#define vmnewmap                 trap1(#11)
-#define vmcache                  trap1(#13)
-#define vmgettime                trap1(#14)
-#define vmsettime                trap1(#15)
-#define vmwait                   trap1(#16)
-#define vmyield                  trap1(#17)
-#define vmstart                  trap1(#18)
-#define vmstop                   trap1(#19)
-#define vmvpid                   trap1(#20)
-#define vmsetregs                trap1(#21)
-#define vmgetregs                trap1(#22)
+#include "hexagon_vm.h"
 
-// PTE page size indicators
-#define PTE_PGSIZE_4K        	0
-#define PTE_PGSIZE_16K       	1
-#define PTE_PGSIZE_64K       	2
-#define PTE_PGSIZE_256K      	3
-#define PTE_PGSIZE_1M        	4
-#define PTE_PGSIZE_4M        	5
-#define PTE_PGSIZE_16M       	6
-#define PTE_PGSIZE_INVALID   	7
-
-// PTE bitfield definitions
-#define PTE_U_BIT            	5
-#define PTE_CCC_OFF          	6
-#define PTE_CCC_WIDTH        	3
-#define PTE_R_BIT            	9
-#define PTE_W_BIT            	10
-#define PTE_X_BIT            	11
-
-#define USER_BIT		(0x1 << PTE_U_BIT)
-#define PERM_BITS		(0x7 << PTE_R_BIT)    // X:1 W:1 R:1
-#define CACHE_BITS		(0x7 << PTE_CCC_OFF)
-#define GUEST_PTE_BITS		(PERM_BITS | CACHE_BITS | PTE_PGSIZE_4M)
-#define XWR_PTE_BITS		((0x7 << PTE_R_BIT) | CACHE_BITS | PTE_PGSIZE_4M)
-#define USER_XWR_PTE_BITS	(USER_BIT | (0x7 << PTE_R_BIT) | CACHE_BITS | PTE_PGSIZE_4M)
-#define USER_WR_PTE_BITS	(USER_BIT | (0x3 << PTE_R_BIT) | CACHE_BITS | PTE_PGSIZE_4M)
-#define USER_R_PTE_BITS		(USER_BIT | (0x1 << PTE_R_BIT) | CACHE_BITS | PTE_PGSIZE_4M)
+#define PERM_BITS		(0x7 << HVM_PTE_R_BIT)    // X:1 W:1 R:1
+#define CACHE_BITS		(0x7 << HVM_PTE_CCC_OFF)
+#define GUEST_PTE_BITS		(PERM_BITS | CACHE_BITS | HVM_PTE_PGSIZE_4M)
 
 #define FOUR_MB_BITS		22
 #define FOUR_MB			(1 << FOUR_MB_BITS)
 #define FOUR_MB_MASK		(~(FOUR_MB - 1))
-
-#define HVM_EXCP_PROT_EX		0x11
-#define HVM_EXCP_PROT_UEX		0x14
-#define HVM_EXCP_PROT_RD		0x22
-#define HVM_EXCP_PROT_WR		0x23
-#define HVM_EXCP_PROT_URD		0x24
-#define HVM_EXCP_PROT_UWR		0x25
-
-#define HVM_INTOP_NOP			0x0
-#define HVM_INTOP_GLOBEN		0x1
-#define HVM_INTOP_GLOBDIS		0x2
-#define HVM_INTOP_LOCEN			0x3
-#define HVM_INTOP_LOCDIS		0x4
-#define HVM_INTOP_AFFINITY		0x5
-#define HVM_INTOP_GET			0x6
-#define HVM_INTOP_PEEK			0x7
-#define HVM_INTOP_STATUS		0x8
-#define HVM_INTOP_POST			0x9
-#define HVM_INTOP_CLEAR			0xa
 
 #define NUM_INTERRUPTS			16
 
@@ -83,9 +25,6 @@
 	memw(r0 ++ #4) = r1; \
 	{ r1 = add(r1, r2) } :endloop0
 
-
-#define GSR_IE_BIT               30
-#define GSR_UM_BIT               31
 
 #define FD_STDOUT                1
 
@@ -300,7 +239,7 @@ stack:
 	.fill 32, 4, 0
 
 #define XLAT4M(VAL) \
-	.word (VAL | PTE_PGSIZE_INVALID);
+	.word (VAL | HVM_PTE_PGSIZE_INVALID);
 
 #define XLAT16M(VAL) \
 	XLAT4M(VAL) \

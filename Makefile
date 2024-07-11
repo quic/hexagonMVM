@@ -24,19 +24,21 @@ GUEST_LDFLAGS=-nostdlib \
 
 OBJS=minivm.o
 
+minivm.o: minivm.S hexagon_vm.h
+
 minivm: ${OBJS} Makefile hexagon.lds
 	${LD} -o $@ -T hexagon.lds ${OBJS} ${LDFLAGS}
 
-first: first.S Makefile
+first: first.S hexagon_vm.h Makefile
 	${CC} ${CFLAGS} -o $@ $< ${GUEST_LDFLAGS}
 
-test_mmu: test_mmu.S Makefile
+test_mmu: test_mmu.S hexagon_vm.h Makefile
 	${CC} ${CFLAGS} -o $@ $< ${GUEST_LDFLAGS}
 
-test_interrupts: test_interrupts.S Makefile
+test_interrupts: test_interrupts.S hexagon_vm.h Makefile
 	${CC} ${CFLAGS} -o $@ $< ${GUEST_LDFLAGS}
 
-test_processors: test_processors.S Makefile
+test_processors: test_processors.S hexagon_vm.h Makefile
 	${CC} ${CFLAGS} -o $@ $< ${GUEST_LDFLAGS}
 
 .PHONY: test FORCE
