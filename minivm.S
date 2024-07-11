@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "hexagon_vm.h"
+
 #define TLB_ENTRIES 64
 #define TLB_TEMP_ENTRY 1
 #define TLB_FIRST_REPLACEABLE_ENTRY 2
@@ -86,33 +88,6 @@
 #define TLB_XPB_WIDTH            1
 #define TLB_VG_OFF               (62 - 32)
 #define TLB_VG_WIDTH             2
-
-// PTE page size indicators
-#define PTE_PGSIZE_4K        	0
-#define PTE_PGSIZE_16K       	1
-#define PTE_PGSIZE_64K       	2
-#define PTE_PGSIZE_256K      	3
-#define PTE_PGSIZE_1M        	4
-#define PTE_PGSIZE_4M        	5
-#define PTE_PGSIZE_16M       	6
-#define PTE_PGSIZE_INVALID   	7
-
-// PTE bitfield definitions
-#define PTE_PGSIZE_OFF		0
-#define PTE_PGSIZE_WIDTH	3
-#define PTE_U_BIT            	5
-#define PTE_CCC_OFF          	6
-#define PTE_CCC_WIDTH        	3
-#define PTE_R_BIT            	9
-#define PTE_W_BIT            	10
-#define PTE_X_BIT            	11
-
-#define HVM_EXCP_PROT_EX		0x11
-#define HVM_EXCP_PROT_UEX		0x14
-#define HVM_EXCP_PROT_RD		0x22
-#define HVM_EXCP_PROT_WR		0x23
-#define HVM_EXCP_PROT_URD		0x24
-#define HVM_EXCP_PROT_UWR		0x25
 
 #define HEX_CAUSE_TLBMISSRW_READ			0x070
 
@@ -308,12 +283,12 @@ MINIVM_handle_tlbmissrw:
 	/* Otherwise, we want to extract 10-(2*SSS) bits from badva at offset 12+(2*SSS) 
 	 * and insert them at offset 2 of the (L1 entry & -16) ... */
 	{
-		p1 = tstbit(r30, #PTE_U_BIT)
+		p1 = tstbit(r30, #HVM_PTE_U_BIT)
 		r20 = insert(r30, #3, #1)	// LSB field * 2 (size)
 		r30 = and(r30,#-16)		// clear LSB field (size) + rsvd bit
 	}
 	{
-		p0 = cmp.gt(r20, #PTE_PGSIZE_1M *2)	// L1 entry or invalid?
+		p0 = cmp.gt(r20, #HVM_PTE_PGSIZE_1M *2)	// L1 entry or invalid?
 		if (!p0.new) r23 = sub(r23,r20)		// width
 		if (!p0.new) r22 = add(r20,#12)		// offset
 	}
@@ -346,14 +321,14 @@ MINIVM_handle_tlbmissrw:
 
 	{
 		r30 = memw(r30)			// L2 entry
-		r23 = #(0x7 << PTE_R_BIT)	// mask to check RWX
+		r23 = #(0x7 << HVM_PTE_R_BIT)	// mask to check RWX
 	}
 	{
 		r30 = tableidxb(r20,#5,#1)	// r20 >> 1 == size, clear bits 3,4; no T in v2
 		p0 = bitsclr(r30,r23)
 	}
 	{
-		p1 = tstbit(r30, #PTE_U_BIT)
+		p1 = tstbit(r30, #HVM_PTE_U_BIT)
 		r20 = r30
 	}
 	if (p0) jump MINIVM_pagefault	// no RWX bits, so pagefault
@@ -367,13 +342,13 @@ MINIVM_handle_tlbmissrw:
 	// R29 has tlbhi
 	r28 = lsr(r20, #TARGET_PAGE_BITS)	// tlblo in r28
 	r28 = asl(r28, #1)			// Make room for page size bits
-	r23 = extractu(r20, #PTE_PGSIZE_WIDTH, #PTE_PGSIZE_OFF)
+	r23 = extractu(r20, #HVM_PTE_PGSIZE_WIDTH, #HVM_PTE_PGSIZE_OFF)
 	r28 = setbit(r28, r23)			// r28 |= 1 << r23
 	r23 = #TLB_C_WB_C
 	r28 = insert(r23, #TLB_CCCC_WIDTH, #TLB_CCCC_OFF)
-	r23 = extractu(r20, #3, #PTE_R_BIT)	// XWR bits
+	r23 = extractu(r20, #3, #HVM_PTE_R_BIT)	// XWR bits
 	r23 = asl(r23, #1)
-	r22 = extractu(r20, #1, #PTE_U_BIT)
+	r22 = extractu(r20, #1, #HVM_PTE_U_BIT)
 	r23 = or(r23, r22)
 	r28 = insert(r23, #TLB_XWRU_WIDTH, #TLB_XWRU_OFF)
 
@@ -414,9 +389,9 @@ MINIVM_handle_tlbmissrw:
 	/* r20 has 2*SSS */
 	/* P1 has bit 5 == true (U) */
 	{
-		p0 = cmp.eq(r20, #PTE_PGSIZE_INVALID * 2)
+		p0 = cmp.eq(r20, #HVM_PTE_PGSIZE_INVALID * 2)
 		if (p0.new) jump:nt MINIVM_pagefault	// SSS = 7
-		r21 = #7 << PTE_R_BIT			// Bit mask for rwx
+		r21 = #7 << HVM_PTE_R_BIT		// Bit mask for rwx
 		p1 = or(p1,p2)			// Supervisor Mode, or User and User?
 	}
 	{
