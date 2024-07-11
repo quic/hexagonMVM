@@ -2,24 +2,8 @@
  * Copyright (c) 2024 Taylor Simpson <ltaylorsimpson@gmail.com>
  * SPDX-License-Identifier: BSD-3-Clause
  */
-#define vmrte                    trap1(#1)
-#define vmsetvec                 trap1(#2)
-#define vmsetie                  trap1(#3)
-#define vmgetie                  trap1(#4)
-#define vmintop                  trap1(#5)
-#define vmclrmap                 trap1(#10)
-#define vmnewmap                 trap1(#11)
-#define vmcache                  trap1(#13)
-#define vmgettime                trap1(#14)
-#define vmsettime                trap1(#15)
-#define vmwait                   trap1(#16)
-#define vmyield                  trap1(#17)
-#define vmstart                  trap1(#18)
-#define vmstop                   trap1(#19)
-#define vmvpid                   trap1(#20)
-#define vmsetregs                trap1(#21)
-#define vmgetregs                trap1(#22)
 
+#include "hexagon_vm.h"
 
 #define FD_STDOUT                1
 
