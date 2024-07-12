@@ -721,7 +721,7 @@ MINIVM_yield:
 	jump MINIVM_trap1_done
 
 MINIVM_vpid:	// return hw tnum
-	r0 = s8
+	r0 = htid
 	jump MINIVM_trap1_done
 
 MINIVM_setregs:	// set guest regs
@@ -812,19 +812,14 @@ MINIVM_clrmap:
 
 	.global MINIVM_get_pcycles
 MINIVM_get_pcycles:
-	r1 = PCYCLEHI
-	r0 = PCYCLELO
-	r10 = PCYCLEHI
 	{
-		p0 = cmp.eq(r1,r10)
-		if (!p0.new) jump:nt MINIVM_get_pcycles
+		r1:0 = s31:30
+		jump MINIVM_trap1_done
 	}
-	jump MINIVM_trap1_done
 
 MINIVM_set_pcycles:
-	PCYCLELO = r0
-	PCYCLEHI = r1
 	{
+		s31:30 = r1:0
 		r0 = #0
 		jump MINIVM_trap1_done
 	}
@@ -1221,10 +1216,10 @@ vm_newcpu_startup:
 	memd(r24+#0x70) = r11:10
 	r29 = memw(r24+#4)
 	r0 = ssr
-	r1 = s8
-	r0 = insert(r1,#3,#8)		// ASID per-thread bits
-	r1 = #3
-	r0 = insert(r1, #3, #SSR_UM_BIT)		// EX/UM
+	r0 = setbit(r0, #SSR_GM_BIT)
+	r0 = setbit(r0, #SSR_UM_BIT)
+	r0 = setbit(r0, #SSR_EX_BIT)
+	r0 = clrbit(r0, #SSR_IE_BIT)
 	ssr = r0
 
 	// Mask all interrupts
@@ -1236,7 +1231,7 @@ vm_newcpu_startup:
 
 vm_bootup_code:
 	r10 = pc
-	r11 = s8
+	r11 = htid
 	p0 = cmp.eq(r11,#0)
 	if (!p0) jump vm_newcpu_startup
 	
