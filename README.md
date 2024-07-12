@@ -9,13 +9,14 @@ This project is [licensed](LICENSE) with the BSD 3-clause license.
 
 ## Status
 
-Current fails when trying to enable the MMU at 1223
+The current status is the minivm can execute the first test (first.S).
+It is a simple test that prints "Hello!" and exits.  Run "make test" to see
+it in action.
 
-See it failing with:
+You can attach the LLDB debugger as follows
 
     $ make test QEMU_OPTS='-s -S'
 
 And in another tab:
 
-    $ make dbg LLDB_OPTS="-o 'break set -a 0xc0000aa4' -o c"
-    $ step
+    $ make dbg LLDB_OPTS="-o 'break set -a 0xc0000ac4' -o c -o stepi"
