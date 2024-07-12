@@ -35,12 +35,53 @@
 
 #define FAKE_GUEST_SUPERVISOR_BIT 13
 
-#define CACHEIDX_MAX 2048
+#define SSR_CAUSE_OFF        0
+#define SSR_CAUSE_WIDTH      8
+#define SSR_ASID_OFF         8
+#define SSR_ASID_WIDTH       7
+// SSR bit 15 is reserved
+#define SSR_UM_BIT           16
+#define SSR_EX_BIT           17
+#define SSR_IE_BIT           18
+#define SSR_GM_BIT           19
 
-#define MAKEWORK(X) lo(X)
+#define CACHEIDX_MAX 2048
 
 #define WAYS_MAX 16
 #define SETS_MAX (((32*1024)/32)/(WAYS_MAX))
+
+
+#define TARGET_PAGE_BITS     12
+
+// TLB page size indicators
+#define TLB_PGSIZE_4K            1
+#define TLB_PGSIZE_16K           2
+#define TLB_PGSIZE_64K           4
+#define TLB_PGSIZE_256K          8
+#define TLB_PGSIZE_1M            16
+#define TLB_PGSIZE_4M            32
+#define TLB_PGSIZE_16M           64
+#define TLB_PGSIZE_64M           128
+#define TLB_PGSIZE_256M          256
+#define TLB_PGSIZE_1G            512
+
+// TLB bitfield definitions
+//     For those in TLBHI, subtract 32 from the offset
+#define TLB_CCCC_OFF             24
+#define TLB_CCCC_WIDTH           4
+#define TLB_XWRU_OFF             28
+#define TLB_XWRU_WIDTH           4
+#define TLB_VA_OFF               (32 - 32)
+#define TLB_VA_WIDTH             20
+#define TLB_ASID_OFF             (52 - 32)
+#define TLB_ASID_WIDTH           7
+#define TLB_AA_OFF               (59 - 32)
+#define TLB_AA_WIDTH             2
+#define TLB_XPB_OFF              (61 - 32)              // eXtra Physical Bit
+#define TLB_XPB_WIDTH            1
+#define TLB_VG_OFF               (62 - 32)
+#define TLB_VG_WIDTH             2
+
 
 	.section .vm_data,"awx",@progbits
 	.global MINIVM_event_vectors
@@ -184,7 +225,7 @@ MINIVM_handle_tlbmissrw:
 		r28 |= asl(r23,#20)			// OR in bits
 		r23 = #TLB_TEMP_ENTRY
 		r30.h = #0xfffe				// replace upper bits
-		r22 = #MAKEWORK(MINIVM_lock)
+		r22 = ##MINIVM_lock
 	}
 	{
 		memd(r24+#CONTEXT_tlb_r2120) = r21:20
@@ -269,7 +310,7 @@ MINIVM_handle_tlbmissrw:
 	{
 		p1 = tstbit(r30,#5)		// U bit set?
 		r21:20 = combine(r30,r30)
-		r22 = #MAKEWORK(MINIVM_tlbidx)
+		r22 = ##MINIVM_tlbidx
 	}
 	if (p0) jump MINIVM_pagefault	// no RWX bits, so pagefault
 	{
@@ -299,7 +340,7 @@ MINIVM_handle_tlbmissrw:
 	tlbw(r5:4, r21)
 2:
 	{
-		r30 = #MAKEWORK(MINIVM_lock)
+		r30 = ##MINIVM_lock
 		r29 = #0
 	}
 	memw(r30) = r29
@@ -336,7 +377,7 @@ MINIVM_handle_tlbmissrw:
 	{
 		if (!p1) jump MINIVM_nouser
 		r30 = tableidxb(r20,#3,#1)		// reinsert SSS bits
-		r22 = #MAKEWORK(MINIVM_tlbidx)
+		r22 = ##MINIVM_tlbidx
 	}
 	{
 		r30 = memw(r22)
@@ -362,7 +403,7 @@ MINIVM_pagefault:
 	{
 		memd(r24+#CONTEXT_r1514) = r15:14
 		r31:30 = memd(r24+#CONTEXT_tlb_r3130)
-		r20 = #MAKEWORK(MINIVM_lock)
+		r20 = ##MINIVM_lock
 	}
 	r15 = r5
 	r14 = ssr
@@ -403,7 +444,7 @@ MINIVM_nouser:
 	{
 		memd(r24+#CONTEXT_r1514) = r15:14
 		r31:30 = memd(r24+#CONTEXT_tlb_r3130)
-		r20 = #MAKEWORK(MINIVM_lock)
+		r20 = ##MINIVM_lock
 	}
 	r15 = r5
 	r14 = ssr
@@ -492,17 +533,19 @@ MINIVM_common_user_push:
 	r13 = badva
 	{
 		r12 = memw(r24+#CONTEXT_g32)				// osp
-		p0 = tstbit(r10,#FAKE_GUEST_SUPERVISOR_BIT)
-		p1 = tstbit(r10,#18)				// IE?
-		r11 = #0x19  /* 0 1 1 0 0 1 */
+		p0 = tstbit(r10, #SSR_GM_BIT)
+		p1 = tstbit(r10, #SSR_IE_BIT)
 	}
 	{
-		r11 = mux(p0,#0,#2)
 		if (!p0) r29 = r12
 		if (!p0) r12 = r29
-		r10 = insert(r11,#6,#FAKE_GUEST_SUPERVISOR_BIT)
 	}
+	r10 = setbit(r10, #SSR_GM_BIT)
+	r10 = setbit(r10, #SSR_UM_BIT)
+	r10 = setbit(r10, #SSR_EX_BIT)
+
 	ssr = r10
+	r11 = mux(p0, #0, #2)
 	{
 		if (p1) r10 = add(r11,#1)
 		if (!p1) r10 = r11
@@ -539,19 +582,18 @@ MINIVM_handle_trap1:
 	crswap(r24,sgp)
 	{
 		memd(r24+#CONTEXT_r1514) = r15:14
-		r15.h = #hi(MINIVM_trap1tab)
+		r15 = ##MINIVM_trap1tab
 	}
 	r14 = ssr
 	{
 		memd(r24+#CONTEXT_r1312) = r13:12
-		r15.l = #lo(MINIVM_trap1tab)
 		r12 = and(r14,#0x1f)			// if we align trap1tab we can use tableidx... comes out the same
 		r13 = p3:0
 	}
 	{
 		memd(r24+#CONTEXT_r1110) = r11:10
 		r12 = addasl(r15,r12,#2)
-		p0 = tstbit(r14,#FAKE_GUEST_SUPERVISOR_BIT)
+		p0 = tstbit(r14, #SSR_GM_BIT)
 	}
 	{
 		r15 = r13
@@ -650,12 +692,12 @@ MINIVM_start:
 	r11 = modectl
 	{
 		r11 = ct1(r11)
-		r10 = #lo(MINIVM_context_t1-MINIVM_context_t0)
+		r10 = #(MINIVM_context_t1-MINIVM_context_t0)
 	}
 	{
 		p0 = cmp.eq(r11,#6)
 		if (p0.new) jump:nt all_6_enabled
-		r12 = #lo(MINIVM_context_t0)
+		r12 = #(MINIVM_context_t0)
 	}
 	r12 += mpyi(r10,r11)
 	{
@@ -687,7 +729,7 @@ MINIVM_register_ptb:
 	{
 		memw(r24+#CONTEXT_gptb) = r0
 		r10 = #TLB_FIRST_REPLACEABLE_ENTRY
-		r12 = #MAKEWORK(MINIVM_lock)
+		r12 = ##MINIVM_lock
 	}
 	r13 = #0
 9:					// get lock
@@ -761,11 +803,10 @@ MINIVM_setie:
 
 MINIVM_intop:
 	{
-		r10.h = #hi(MINIVM_intop_tab)
+		r10 = ##MINIVM_intop_tab
 		r11 = #11
 	}
 	{
-		r10.l = #lo(MINIVM_intop_tab)
 		r11 = minu(r11,r0)
 	}
 	{
@@ -902,12 +943,11 @@ MINIVM_cachectl:
 	 * r2: len
 	 */
 	{
-		r10.h = #hi(9f)
+		r10 = #9f
 		p0 = cmp.gtu(r0,#6)
 		if (p0.new) r0 = #-1
 	}
 	{
-		r10.l = #lo(9f)
 		if (p0) jump MINIVM_trap1_done		// invalid type
 	}
 	{
@@ -1003,22 +1043,22 @@ MINIVM_return:
 	{
 		r12 = memw(r24+#CONTEXT_g32)		//r2: gosp
 		r11:10 = memd(r24+#CONTEXT_g10)		//gssr:gelr
-		r13 = #0x18				// -- EX UM -- -- --
+		r13 = #0x3 				// -- -- EX UM
 	}
 	{
 		p0 = tstbit(r11,#GUEST_CAUSE_UM_BIT)
 		p1 = tstbit(r11,#GUEST_CAUSE_IE_BIT)
-		if (p1.new) r13 = #0x38			// IE EX UM -- -- --
+		if (p1.new) r13 = #0x7  		// -- IE EX UM
 	}
 	{
-		if (!p0) r13 = add(r13,#1)		// IE EX UM -- -- SU
+		if (!p0) r13 = add(r13, #0x8)		// GM IE EX UM
 		if (p0) memw(r24+#CONTEXT_g32) = r29	// user mode: switch stacks
 		if (p0) r29 = r12
 	}
 	elr = r10
 	{
 		p3:0 = r15
-		r14 = insert(r13,#6,#FAKE_GUEST_SUPERVISOR_BIT)
+		r14 = insert(r13, #4, #SSR_UM_BIT)
 		r13:12 = memd(r24+#CONTEXT_r1312)
 	}
 	ssr = r14
@@ -1096,9 +1136,8 @@ vm_newcpu_startup:
 	// word @ ptr is elr
 	// word @ ptr+4 is new sp
 	// word @ ptr+8 is callee context block (inherit everything)
-	r24.h = #hi(MINIVM_context_t0)
-	r24.l = #lo(MINIVM_context_t0)
-	r23 = #lo(MINIVM_context_t1-MINIVM_context_t0)
+	r24 = ##MINIVM_context_t0
+	r23 = #(MINIVM_context_t1-MINIVM_context_t0)
 	r24 += mpyi(r23,r11)
 	sgp0 = r24
 	r31 = memw(r24+#0)
@@ -1138,13 +1177,11 @@ vm_newcpu_startup:
 	r1 = s8
 	r0 = insert(r1,#3,#8)		// ASID per-thread bits
 	r1 = #3
-	r0 = insert(r1,#3,#16)		// EX/UM
-	r0 = setbit(r0,#FAKE_GUEST_SUPERVISOR_BIT)
+	r0 = insert(r1, #3, #SSR_UM_BIT)		// EX/UM
 	ssr = r0
 
 	// Mask all interrupts
-	r0.h = #hi(0xFFFFFFFF)
-	r0.l = #lo(0xFFFFFFFF)
+	r0 = #0xFFFFFFFF
 	imask = r0
 
 	elr = r31
@@ -1157,29 +1194,20 @@ vm_bootup_code:
 	if (!p0) jump vm_newcpu_startup
 	
 	/* Disabled the CLK Gating */
-	r0.h = #0x0040
-	r0.l = #0x0000
+	r0 = ##0x00400000
 	s60 = r0 
  
- 	r0.h = #0xd013
- 	r0.l = #0xd013
+	r0 = ##0xd013d013
  	s61 = r0
  	
- 	r0.h = #0x0002
- 	r0.l = #0x0d01
+	r0 = #0x00020d01
  	s62 = r0
  
- 	r0.h = #0x0000
-	r0.l = #0x0010
-#if __HEXAGON_ARCH__ == 2
-	r0.l = #0x0000
-	r10 = setbit(r10,#10)	// disable same-line detection in iu
-#endif
+	r0 = #0x10
 	s63 = r0
 
 	// Mask all interrupts
-	r0.h = #hi(0xFFFFFFFF)
-	r0.l = #lo(0xFFFFFFFF)
+	r0 = #0xFFFFFFF
 	imask = r0
 
  	//  Clear pending interrupts and lingering IAD
@@ -1208,13 +1236,11 @@ vm_bootup_code:
 	s24 = r0
 	r0 = #-1
 	{
-		r9.h = #hi(MINIVM_event_vectors)
-		r11.h = #hi(initial_pt-vm_bootup_code)
+		r9 = ##MINIVM_event_vectors
 		r15 = #0
 	}
 	{
-		r9.l = #lo(MINIVM_event_vectors)
-		r11.l = #lo(initial_pt-vm_bootup_code)
+		r11 = ##initial_pt-vm_bootup_code
 		loop0(1f,#TLB_ENTRIES)
 	}
 	r12 = add(r10,r11)		// initial PT PA
@@ -1227,88 +1253,88 @@ vm_bootup_code:
 	{
 		r15 = add(r15,#1)
 	}:endloop0
+
 	// Add Mini VM entry
-	{
-		r15 = #0
-		r14.h = #hi(0x300ffff0)
-		r13 = lsr(r10,#12)
-#if __HEXAGON_ARCH__ == 2
-		r11 = #0x1c2	// ccc=7, 64K
-#else				// elif V3
-		r11 = #0x9c2	// ccc=7, 64K,  X on for V3 bug
-#endif
-	}
-	{
-		r13 |= asl(r11,#20)
-		r14.l = #lo(0x300ffff0)
-	}
-	r5 = r14
-	r4 = r13
+	r4 = lsr(r10, #TARGET_PAGE_BITS)
+	r4 = asl(r4, #1)                   // Make room for page size bits
+	r4 = or(r4, #TLB_PGSIZE_64K)
+	r15 = #7                           // TODO Make #defines for these values
+	r4 = insert(r15, #TLB_CCCC_WIDTH, #TLB_CCCC_OFF)
+	r15 = #0x6                         // X:0 W:1 R:1 U:0
+	r4 = insert(r15, #TLB_XWRU_WIDTH, #TLB_XWRU_OFF)
+
+	r5 = ##_start
+	r5 = lsr(r5, #TARGET_PAGE_BITS)
+	// ASID, AA, XPB are all zero
+	r15 = #3                           // V:1 G:1
+	r5 = insert(r15, #TLB_VG_WIDTH, #TLB_VG_OFF)
+
+	r15 = #0
 	tlbw(r5:4, r15)
 
 	// Add temp. guest translation
+	r4 = ##(GUEST_ENTRY >> TARGET_PAGE_BITS)
+	r4 = asl(r4, #1)                   // Make room for page size bits
+	r4 = or(r4, #TLB_PGSIZE_16M)
+	r15 = #7                           // TODO Make #defines for these values
+	r4 = insert(r15, #TLB_CCCC_WIDTH, #TLB_CCCC_OFF)
+	r15 = #0xe                         // X:1 W:1 R:1 U:1
+	r4 = insert(r15, #TLB_XWRU_WIDTH, #TLB_XWRU_OFF)
+
+	r5 = ##(GUEST_ENTRY >> TARGET_PAGE_BITS)
+	// ASID, AA, XPB are all zero
+	r15 = #2                           // V:1 G:0
+	r5 = insert(r15, #TLB_VG_WIDTH, #TLB_VG_OFF)
+
 	r15 = #1
-	r14.h = #hi(0x30000000 | (GUEST_ENTRY >> 12))
-	r14.l = #lo(0x30000000 | (GUEST_ENTRY >> 12))
-	r11 = #0xec6		// ccc=7, 16MB, X on for V3 bug
-
-	r13.h = #hi(GUEST_ENTRY >> 12)
-	r13.l = #lo(GUEST_ENTRY >> 12)
-	r13 |= asl(r11,#20)
-
-	r5 = r14
-	r4 = r13
 	tlbw(r5:4, r15)
 
 	// Add temporary entry
-	r15 = #3
-	r3 = r15
-	r14 = lsr(r10,#12)
-	r14 |= asl(r15,#28)
-#if __HEXAGON_ARCH__ == 2
-	r11 = #0x1c2		// ccc=7, 64K
-#else				// elif V3
-        r11 = #0x9c2		// ccc=7, 64K, X on for V3 bug
-#endif
-	r13 = lsr(r10,#12)
-	r13 |= asl(r11,#20)
-	r5 = r14
-	r4 = r13
-	tlbw(r5:4, r3)
+	r4 = lsr(r10, #TARGET_PAGE_BITS)
+	r4 = asl(r4, #1)                   // Make room for page size bits
+	r4 = or(r4, #TLB_PGSIZE_64K)
+	r15 = #7                           // TODO Make #defines for these values
+	r4 = insert(r15, #TLB_CCCC_WIDTH, #TLB_CCCC_OFF)
+	r15 = #0x8                         // X:1 W:0 R:0 U:0
+	r4 = insert(r15, #TLB_XWRU_WIDTH, #TLB_XWRU_OFF)
 
-	r0 = #0x7f
-	r0.h = #0x5			//  l2 cache 1024kB
+	r5 = lsr(r10, #TARGET_PAGE_BITS)
+	// ASID, AA, XPB are all zero
+	r15 = #3                           // V:1 G:1
+	r5 = insert(r15, #TLB_VG_WIDTH, #TLB_VG_OFF)
+
+	r15 = #3
+	tlbw(r5:4, r15)
+
+	r0 = ##0x5007f			//  l2 cache 1024kB
 	syscfg = r0
 
 	r0 = #1				// turn on isdb
 	isync
-	r1.h = #hi(1f)
-	r1.l = #lo(1f)
+	r1 = ##1f
 	jumpr r1			// jump to virtual space
 1:
-	r15 = #0
+	r3 = #3
 	r5:4 = #0
 	tlbw(r5:4, r3)				// clear out tmp mapping
 
-	r7.h = #hi(MINIVM_context_t0)
-	r7.l = #lo(MINIVM_context_t0)
+	r7 = ##MINIVM_context_t0
 	memw(r7+#CONTEXT_gptb) = r12	// set initial page table
 	r2 = #-1
 	sgp0 = r7
-	r8 = #MAKEWORK(MINIVM_tlbidx)
+	r8 = ##MINIVM_tlbidx
 	r6 = #TLB_FIRST_REPLACEABLE_ENTRY
 	memw(r8) = r6
 
+	// Change to quest mode and enable interrupts
 	r0 = ssr
-	r1 = #3
-	r0 = insert(r1,#3,#16)
-	r0 = setbit(r0,#FAKE_GUEST_SUPERVISOR_BIT)
+	r0 = setbit(r0, #SSR_UM_BIT)
+	r0 = setbit(r0, #SSR_IE_BIT)
+	r0 = setbit(r0, #SSR_GM_BIT)
 	ssr = r0
 
 	// Set return point to guest entry
-	r31.h = #hi(GUEST_ENTRY)
-	r31.l = #lo(GUEST_ENTRY)
-
+	r31 = ##GUEST_ENTRY
 	elr =  r31
 	rte
 
