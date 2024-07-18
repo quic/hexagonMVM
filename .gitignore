@@ -13,4 +13,7 @@ tags
 *.pyc
 __pycache__
 .DS_Store
-
+first
+test_interrupts
+test_mmu
+test_processors
