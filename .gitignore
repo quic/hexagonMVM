@@ -2,3 +2,7 @@ minivm
 hello
 minivm.o
 tags
+first
+test_interrupts
+test_mmu
+test_processors
