@@ -10,6 +10,10 @@ USER_RODATA?=0x20400000
 USER_DATA?=0x20800000
 USER_DATA2?=0x20900000
 
+TESTS=$(wildcard tests/*.S)
+TESTS_BIN=$(patsubst tests/%.S,tests_bin/%,${TESTS})
+RUN_TESTS=$(patsubst tests/%.S,run-%,${TESTS})
+
 all: minivm test
 
 CFLAGS=-mv${ARCHV} -O0 -g -DGUEST_ENTRY=${GUEST_ENTRY}
@@ -29,24 +33,23 @@ minivm.o: minivm.S hexagon_vm.h
 minivm: ${OBJS} Makefile hexagon.lds
 	${LD} -o $@ -T hexagon.lds ${OBJS} ${LDFLAGS}
 
-first: first.S hexagon_vm.h Makefile
+tests_bin/%: tests/%.S hexagon_vm.h Makefile
+	@mkdir -p tests_bin
 	${CC} ${CFLAGS} -o $@ $< ${GUEST_LDFLAGS}
 
-test_mmu: test_mmu.S hexagon_vm.h Makefile
-	${CC} ${CFLAGS} -o $@ $< ${GUEST_LDFLAGS}
+.PHONY: test build_tests run_tests FORCE
+test:
+	make build_tests
+	make run_tests
 
-test_interrupts: test_interrupts.S hexagon_vm.h Makefile
-	${CC} ${CFLAGS} -o $@ $< ${GUEST_LDFLAGS}
+build_tests: ${TESTS_BIN}
 
-test_processors: test_processors.S hexagon_vm.h Makefile
-	${CC} ${CFLAGS} -o $@ $< ${GUEST_LDFLAGS}
+run_tests: ${RUN_TESTS}
 
-.PHONY: test FORCE
-test: minivm first test_mmu test_interrupts test_processors FORCE
-	qemu-system-hexagon -M SA8775P_CDSP0 ${QEMU_OPTS} -device loader,addr=${GUEST_ENTRY},file=./first -kernel ./minivm
-	qemu-system-hexagon -M SA8775P_CDSP0 ${QEMU_OPTS} -device loader,addr=${GUEST_ENTRY},file=./test_mmu -kernel ./minivm
-	qemu-system-hexagon -M SA8775P_CDSP0 ${QEMU_OPTS} -device loader,addr=${GUEST_ENTRY},file=./test_interrupts -kernel ./minivm
-	qemu-system-hexagon -M SA8775P_CDSP0 ${QEMU_OPTS} -device loader,addr=${GUEST_ENTRY},file=./test_processors -kernel ./minivm
+run-%: tests_bin/% minivm
+	qemu-system-hexagon \
+		-display none -M SA8775P_CDSP0 -kernel ./minivm ${QEMU_OPTS} \
+		-device loader,addr=${GUEST_ENTRY},file=$<
 
 .PHONY: dbg
 dbg: FORCE
@@ -56,6 +59,6 @@ minivm.bin: minivm
 	${OBJCOPY} -O binary $< $@
 
 clean:
-	rm -f *.o minivm first test_mmu test_interrupts test_processors minivm.bin ${OBJS}
+	rm -rf tests_bin minivm minivm.bin ${OBJS}
 
 
