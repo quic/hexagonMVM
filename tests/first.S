@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "hexagon_vm.h"
+#include "../hexagon_vm.h"
 
 #define FD_STDOUT                1
 

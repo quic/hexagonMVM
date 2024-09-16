@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "hexagon_vm.h"
+#include "../hexagon_vm.h"
 
 #define USER_BIT		(0x1 << HVM_PTE_U_BIT)
 #define PERM_BITS		(0x7 << HVM_PTE_R_BIT)    // X:1 W:1 R:1

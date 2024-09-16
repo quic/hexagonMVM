@@ -1,5 +1,4 @@
 minivm
-hello
 minivm.o
 tags
 *.a
@@ -13,7 +12,4 @@ tags
 *.pyc
 __pycache__
 .DS_Store
-first
-test_interrupts
-test_mmu
-test_processors
+tests_bin
