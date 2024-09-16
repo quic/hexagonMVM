@@ -22,14 +22,15 @@ _start:
 
 	.type	str,@object
 str:
-	.string	"Hello!\n"
-	.size	str, 8
+	.string	"PASS\n"
+	.size	str, 6
 	.type	angel_args,@object
 angel_args:
 	.word   FD_STDOUT
 	.word   str
-	.word   8
+	.word   6
 
+.align 8
 GUEST_event_vectors:
 	jump GUEST_event_abort           // 0: reserved`
 	jump GUEST_event_abort           // 1: machine check
