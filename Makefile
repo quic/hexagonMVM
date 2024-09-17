@@ -28,6 +28,10 @@ GUEST_LDFLAGS=-nostdlib \
 
 OBJS=minivm.o
 
+prefix?=/usr/local
+exec_prefix?=$(prefix)
+bindir?=$(exec_prefix)/bin
+
 minivm.o: minivm.S hexagon_vm.h
 
 minivm: ${OBJS} Makefile hexagon.lds
@@ -51,12 +55,16 @@ run-%: tests_bin/% minivm
 		-display none -M SA8775P_CDSP0 -kernel ./minivm ${QEMU_OPTS} \
 		-device loader,addr=${GUEST_ENTRY},file=$<
 
-.PHONY: dbg
+.PHONY: dbg install
 dbg: FORCE
 	lldb -o 'file ./minivm' -o 'target modules add ./vmlinux' -o 'target modules load -s 0 --file ./vmlinux' -o 'gdb-remote localhost:1234' ${LLDB_OPTS}
 
 minivm.bin: minivm
 	${OBJCOPY} -O binary $< $@
+
+install: minivm minivm.bin $(TESTS_BIN)
+	 mkdir -p $(bindir)/
+	 install -D $^ $(bindir)/
 
 clean:
 	rm -rf tests_bin minivm minivm.bin ${OBJS}
