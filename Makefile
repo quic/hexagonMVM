@@ -16,9 +16,9 @@ RUN_TESTS=$(patsubst tests/%.S,run-%,${TESTS})
 
 all: minivm test
 
-CFLAGS+=-mv${ARCHV} -O0 -g -DGUEST_ENTRY=${GUEST_ENTRY}
-ASFLAGS+=${CFLAGS}
-LDFLAGS+=-nostdlib -static
+CFLAGS_EXTRA+=-mv${ARCHV} -O0 -g -DGUEST_ENTRY=${GUEST_ENTRY}
+ASFLAGS_EXTRA+=${CFLAGS_EXTRA}
+LDFLAGS_EXTRA+=-nostdlib -static
 GUEST_LDFLAGS=-nostdlib \
     -Wl,-section-start,.start=${GUEST_ENTRY} \
     -Wl,-section-start,.user_text=${USER_TEXT} \
@@ -33,13 +33,14 @@ exec_prefix?=$(prefix)
 bindir?=$(exec_prefix)/bin
 
 minivm.o: minivm.S hexagon_vm.h
+	${CC} ${CFLAGS} ${CFLAGS_EXTRA} -c -o $@ $<
 
 minivm: ${OBJS} Makefile hexagon.lds
-	${LD} -o $@ -T hexagon.lds ${OBJS} ${LDFLAGS}
+	${LD} -o $@ -T hexagon.lds ${OBJS} ${LDFLAGS} ${LDFLAGS_EXTRA}
 
 tests_bin/%: tests/%.S hexagon_vm.h Makefile
 	@mkdir -p tests_bin
-	${CC} ${CFLAGS} -o $@ $< ${GUEST_LDFLAGS}
+	${CC} ${CFLAGS} ${CFLAGS_EXTRA} -o $@ $< ${GUEST_LDFLAGS}
 
 .PHONY: test build_tests run_tests FORCE
 test:
