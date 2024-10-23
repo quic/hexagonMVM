@@ -1,4 +1,4 @@
-ARCH=hexagon-
+ARCH=hexagon-unknown-none-elf-
 CC=${ARCH}clang
 LD=${CC}
 OBJCOPY=${ARCH}objcopy
