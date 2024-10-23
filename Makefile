@@ -16,9 +16,9 @@ RUN_TESTS=$(patsubst tests/%.S,run-%,${TESTS})
 
 all: minivm test
 
-CFLAGS=-mv${ARCHV} -O0 -g -DGUEST_ENTRY=${GUEST_ENTRY}
-ASFLAGS=${CFLAGS}
-LDFLAGS=-nostdlib -static
+CFLAGS+=-mv${ARCHV} -O0 -g -DGUEST_ENTRY=${GUEST_ENTRY}
+ASFLAGS+=${CFLAGS}
+LDFLAGS+=-nostdlib -static
 GUEST_LDFLAGS=-nostdlib \
     -Wl,-section-start,.start=${GUEST_ENTRY} \
     -Wl,-section-start,.user_text=${USER_TEXT} \
