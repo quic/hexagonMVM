@@ -254,8 +254,8 @@ MINIVM_handle_tlbmissrw:
 	memw_locked(r22,p0) = r21			// write 1
 	if (!p0) jump 1b
 
-	r3 = #TLB_TEMP_ENTRY
-	tlbw(r29:28, r3)
+	r21 = #TLB_TEMP_ENTRY
+	tlbw(r29:28, r21)
 
 	r21 = ssr
 	r28 = badva
