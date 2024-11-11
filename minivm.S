@@ -311,7 +311,8 @@ MINIVM_handle_tlbmissrw:
 
 	r30.h = #HI(PAGE_TABLE_VA)	// form l2 vaddr
 
-	tlbw(r29:28, r3)
+	r23 = #TLB_TEMP_ENTRY
+	tlbw(r29:28, r23)
 
 	r29 = badva
 	r29 = lsr(r29, #TARGET_PAGE_BITS)	// tlbhi in r29
