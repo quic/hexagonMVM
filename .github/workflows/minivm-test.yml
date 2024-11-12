@@ -1,0 +1,32 @@
+name: MiniVM test
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+
+jobs:
+  build_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+            sudo apt update
+            sudo apt install make gcc qemu wget
+      - name: Set PATH
+        run: echo "PATH=${PATH}:/usr/local/bin:/opt/clang+llvm-19.1.2-cross-hexagon-unknown-linux-musl/x86_64-linux-gnu/bin" >> ${GITHUB_ENV}
+      - name: Download, Unpack Toolchain
+        env:
+          URL: https://artifacts.codelinaro.org/artifactory/codelinaro-toolchain-for-hexagon/19.1.2/clang+llvm-19.1.2-cross-hexagon-unknown-linux-musl.tar.xz
+        run: |
+            cd /tmp
+            wget --quiet ${URL}
+            cd /opt
+            tar xf /tmp/clang+llvm-19.1.2-cross-hexagon-unknown-linux-musl.tar.xz
+      - name: Build
+        run: |
+            make minivm build_tests CC=hexagon-unknown-none-elf-clang
