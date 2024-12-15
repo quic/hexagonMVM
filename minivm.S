@@ -1278,7 +1278,7 @@ vm_bootup_code:
 	r4 = or(r4, #TLB_PGSIZE_64K)
 	r15 = #TLB_C_WB_C
 	r4 = insert(r15, #TLB_CCCC_WIDTH, #TLB_CCCC_OFF)
-	r15 = #0xe                         // X:1 W:1 R:1 U:0
+	r15 = #0x6                         // X:1 W:1 R:1 U:0
 	r4 = insert(r15, #TLB_XWRU_WIDTH, #TLB_XWRU_OFF)
 
 	r5 = ##_start

@@ -41,7 +41,7 @@ PA_START = 0x00000000;
 SECTIONS
 {
   . = 0xffff0000;
-  vm_bootup = 0xd0000000;
+  vm_bootup = 0x9b800000;
   .vm_data : AT (vm_bootup + PA_START)
   {
      *(.vm_data)

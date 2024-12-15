@@ -1,10 +1,12 @@
-ARCH=hexagon-unknown-none-elf-
+export PATH := /prj/qct/llvm/release/internal/HEXAGON/branch-8.8lnx/latest/Tools/bin:/prj/qct/llvm/release/internal/HEXAGON/branch-8.8/linux64/latest/Tools/bin:$(PATH)
+
+ARCH=hexagon-
 CC=${ARCH}clang
 LD=${CC}
 OBJCOPY=${ARCH}objcopy
 
 ARCHV?=73
-GUEST_ENTRY?=0xc0000000
+GUEST_ENTRY?=0xA0000000
 USER_TEXT?=0x20000000
 USER_RODATA?=0x20400000
 USER_DATA?=0x20800000
@@ -33,7 +35,7 @@ exec_prefix?=$(prefix)
 bindir?=$(exec_prefix)/bin
 
 minivm.o: minivm.S hexagon_vm.h
-	${CC} ${CFLAGS} ${CFLAGS_EXTRA} -c -o $@ $<
+	${CC}  ${CFLAGS} ${CFLAGS_EXTRA} -c -o $@ $<
 
 minivm: ${OBJS} Makefile hexagon.lds
 	${LD} -o $@ -T hexagon.lds ${OBJS} ${LDFLAGS} ${LDFLAGS_EXTRA}
