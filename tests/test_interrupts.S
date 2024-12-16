@@ -189,6 +189,7 @@ fail_args:
 	.word   fail_str
 	.word   6
 
+.p2align 8
 GUEST_event_vectors:
 	jump GUEST_event_abort           // 0: reserved
 	jump GUEST_event_abort           // 1: machine check

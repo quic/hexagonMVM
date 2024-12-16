@@ -26,8 +26,7 @@
 #define CONTEXT_r1312     0x28
 #define CONTEXT_r1110     0x30
 #define CONTEXT_gsp       0x40
-#define CONTEXT_gevb      0x44
-#define CONTEXT_gptb      0x48
+#define CONTEXT_gptb      0x44
 
 #define SSR_CAUSE_OFF        0
 #define SSR_CAUSE_WIDTH      8
@@ -581,7 +580,7 @@ MINIVM_common_user_push:
 	}
 	{
 		r11 = insert(r10, #2, #GUEST_CAUSE_IE_BIT)	// Insert UM:IE bits
-		r12 = memw(r24+#CONTEXT_gevb)
+		r12 = s11
 	}
 	r10 = elr
 	{
@@ -944,7 +943,7 @@ MINIVM_intop_clear:
 
 MINIVM_setvec: // r0=vector address
 	{
-		memw(r24+#CONTEXT_gevb) = r0
+		s11 = r0
 		r0 = #0
 		jump MINIVM_trap1_done
 	}

@@ -92,6 +92,7 @@ _start:
 	vmstop
 
 
+.p2align 8
 GUEST_event_vectors:
 	jump GUEST_event_abort           // 0: reserved`
 	jump GUEST_event_abort           // 1: machine check
