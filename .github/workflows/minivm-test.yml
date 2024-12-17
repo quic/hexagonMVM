@@ -8,15 +8,17 @@ on:
 
 
 jobs:
-  build_test:
-    runs-on: ubuntu-latest
+  build_and_test:
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v2
       - name: Install dependencies
         run: |
+            sudo sed -Ei 's/^# deb-src /deb-src /' /etc/apt/sources.list
             sudo apt update
             sudo apt install make gcc qemu wget
+            sudo apt build-dep -yy qemu
       - name: Set PATH
         run: echo "PATH=${PATH}:/usr/local/bin:/opt/clang+llvm-19.1.2-cross-hexagon-unknown-linux-musl/x86_64-linux-gnu/bin" >> ${GITHUB_ENV}
       - name: Download, Unpack Toolchain
@@ -27,6 +29,7 @@ jobs:
             wget --quiet ${URL}
             cd /opt
             tar xf /tmp/clang+llvm-19.1.2-cross-hexagon-unknown-linux-musl.tar.xz
-      - name: Build
-        run: |
-            make minivm build_tests CC=hexagon-unknown-none-elf-clang
+      - name: build
+        run: make minivm CC=hexagon-unknown-none-elf-clang
+      - name: test
+        run: make test CC=hexagon-unknown-none-elf-clang
