@@ -642,7 +642,7 @@ MINIVM_trap1_done:
 	rte
 
 MINIVM_trap1tab:
-	jump MINIVM_trap1_done		// 0
+	jump MINIVM_version		// 0
 	jump MINIVM_return		// 1
 	jump MINIVM_setvec		// 2
 	jump MINIVM_setie		// 3
@@ -687,6 +687,10 @@ MINIVM_trap1_dump:
 	r4 = s26
 	jump MINIVM_trap1_done
 
+
+MINIVM_version:	// return VM version
+	r0 = #0x0700
+	jump MINIVM_trap1_done
 
 MINIVM_stop:
 	stop(r0)
