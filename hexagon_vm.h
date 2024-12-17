@@ -8,6 +8,7 @@
 #define _HEXAGON_VM_H
 
 // Virtual instructions
+#define vmversion trap1(#0)
 #define vmrte     trap1(#1)
 #define vmsetvec  trap1(#2)
 #define vmsetie   trap1(#3)

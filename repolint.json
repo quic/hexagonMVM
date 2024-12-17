@@ -23,6 +23,7 @@
           ],
           "skip-paths-matching": {
             "patterns": [
+              "tests/test_vmversion.S",
               "tests/test_processors.S",
               "tests/test_mmu.S",
               "tests/test_interrupts.S",
