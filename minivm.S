@@ -814,12 +814,12 @@ MINIVM_getie:
 MINIVM_setie:
 	r10 = ssr
 	{
-		r1 = r10
+		r11 = r10
 		r10 = insert(r0, #1, #SSR_IE_BIT)
 	}
 	ssr = r10
 	{
-		r0 = extractu(r1, #1, #SSR_IE_BIT)
+		r0 = extractu(r11, #1, #SSR_IE_BIT)
 		jump MINIVM_trap1_done
 	}
 
