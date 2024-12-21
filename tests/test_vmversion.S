@@ -39,21 +39,21 @@ _fail:
 	.type	pass_str,@object
 pass_str:
 	.string	"PASS\n"
-	.size	pass_str, 6
+	.size	pass_str, 5
 	.type	fail_str,@object
 fail_str:
 	.string	"FAIL\n"
-	.size	fail_str, 6
+	.size	fail_str, 5
 	.type	pass_args,@object
 pass_args:
 	.word   FD_STDOUT
 	.word   pass_str
-	.word   6
+	.word   5
 	.type	fail_args,@object
 fail_args:
 	.word   FD_STDOUT
 	.word   fail_str
-	.word   6
+	.word   5
 
 .p2align 8
 GUEST_event_vectors:
