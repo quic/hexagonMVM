@@ -23,12 +23,12 @@ _start:
 	.type	str,@object
 str:
 	.string	"PASS\n"
-	.size	str, 6
+	.size	str, 5
 	.type	angel_args,@object
 angel_args:
 	.word   FD_STDOUT
 	.word   str
-	.word   6
+	.word   5
 
 .p2align 8
 GUEST_event_vectors:

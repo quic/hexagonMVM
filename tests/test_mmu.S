@@ -231,7 +231,7 @@ _user_text:
 	memw(##angel_args) = r0
 	r0 = ##hello_str
 	memw(##angel_args+4) = r0
-	r0 = #8
+	r0 = #7
 	memw(##angel_args+8) = r0
 	r0 = #5
 	r1 = ##angel_args
@@ -277,7 +277,7 @@ _user_text:
 	memw(##angel_args) = r0
 	r0 = ##pass_str
 	memw(##angel_args+4) = r0
-	r0 = #6
+	r0 = #5
 	memw(##angel_args+8) = r0
 	r0 = #5
 	r1 = ##angel_args
@@ -293,7 +293,7 @@ _fail:
 	memw(##angel_args) = r0
 	r0 = ##fail_str
 	memw(##angel_args+4) = r0
-	r0 = #6
+	r0 = #5
 	memw(##angel_args+8) = r0
 	r0 = #5
 	r1 = ##angel_args
@@ -309,15 +309,15 @@ _user_rodata:
 	.type	str,@object
 hello_str:
 	.string	"Hello!\n"
-	.size	hello_str, 8
+	.size	hello_str, 7
 	.type	pass_str,@object
 pass_str:
 	.string	"PASS\n"
-	.size	pass_str, 6
+	.size	pass_str, 5
 	.type	pass_str,@object
 fail_str:
 	.string	"FAIL\n"
-	.size	fail_str, 6
+	.size	fail_str, 5
 _end_user_rodata:
 
 
