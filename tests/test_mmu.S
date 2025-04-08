@@ -18,6 +18,8 @@
 #define FOUR_MB			(1 << FOUR_MB_BITS)
 #define FOUR_MB_MASK		(~(FOUR_MB - 1))
 
+#define STACK_SIZE			1024
+
 #define CREATE_PTE_ENTRIES(START, END, BITS) \
 	/* Number of entries between START and END */ \
 	r26 = #(((END-START)+FOUR_MB-1)>>FOUR_MB_BITS); \
@@ -41,6 +43,7 @@ _start:
 	r25 = pc
 	r24 = ##(guest_pt-_start)
 	r24 = add(r24, r25)
+	p0 = cmp.eq(r25, #0)
 
 	CREATE_PTE_ENTRIES(_start, _end_guest, GUEST_PTE_BITS)
 	// Intentionally leave out user bit to force a nouser exception
@@ -79,11 +82,18 @@ _start:
 	r0 = ##GUEST_event_vectors
 	vmsetvec
 
+	r29 = ##(GUEST_stack + STACK_SIZE)
+
 	// Switch to user mode
 	r11 = gsr
 	r10 = ##_user_text
 	r11 = setbit(r11, #HVM_GSR_UM_BIT)
 	g1:0 = r11:10
+
+	// vmrte will swap gosp/r29 when entering user space
+	// Put a bogus value for now because user space will set its own r29
+	r10 = #0xbeef
+	gosp = r10
 	vmrte
 
 	// user space code should should do an exit
@@ -105,6 +115,13 @@ GUEST_event_vectors:
 
 
 GUEST_event_abort:
+	r29 = add(r29, #-32)
+	memd(r29) = r1:0
+	memd(r29+#8) = r3:2
+	memd(r29+#16) = r5:4
+	r2 = p3:0
+	memw(r29+#24) = r2
+
 	r2 = gsr		// return gsr value to shell
 	r5 = zxth(r2)
 
@@ -124,7 +141,7 @@ GUEST_event_abort:
 	vmnewmap
 	r0 = #1
 	memw(##caught_page_fault_exception) = r0
-	vmrte
+	jump 4f
 
 1:
 	// Special handling for the intentional nouser exception
@@ -139,7 +156,7 @@ GUEST_event_abort:
 	vmnewmap
 	r0 = #1
 	memw(##caught_nouser_exception) = r0
-	vmrte
+	jump 4f
 
 2:
 	r3 = memw(##expected_exception)
@@ -154,14 +171,29 @@ GUEST_event_abort:
 	r3 = gelr
 	r3 = add(r3, #4)
 	gelr = r3
-	vmrte
+	jump 4f
+
 3:
 	vmstop
+
+4:
+	r2 = memw(r29+#24)
+	p3:0 = r2
+	r1:0 = memd(r29)
+	r3:2 = memd(r29+#8)
+	r5:4 = memd(r29+#16)
+	r29 = add(r29, #32)
+	vmrte
 
 // Simple trap0 handler
 //    Cause code 0 is an angel call - do nothing
 //    Cause code 1 will exit (r0 has return code to shell)
 GUEST_event_trap0:
+	r29 = add(r29, #-8)
+	memw(r29) = r10
+	r10 = p3:0
+	memw(r29+#4) = r10
+
 	r10 = gsr
 	r10 = zxth(r10)
 	{
@@ -171,7 +203,15 @@ GUEST_event_trap0:
 	r2 = r0
 	vmstop
 1:
+	r10 = memw(r29+#4)
+	p3:0 = r10
+	r10 = memw(r29)
+	r29 = add(r29, #8)
 	vmrte
+
+	.align 8
+GUEST_stack:
+	.fill STACK_SIZE, 1, 0
 
 #define XLAT4M(VAL) \
 	.word (VAL | HVM_PTE_PGSIZE_INVALID);
@@ -227,6 +267,8 @@ _end_guest:
 .section .user_text,"awx",@progbits
 .global _user_text
 _user_text:
+	r29 = ##(user_stack + STACK_SIZE)
+
 	r0 = #FD_STDOUT
 	memw(##angel_args) = r0
 	r0 = ##hello_str
@@ -344,6 +386,11 @@ caught_page_fault_exception:
 	.type	caught_nouser_exception,@object
 caught_nouser_exception:
 	.word   0
+
+	.align 8
+user_stack:
+	.fill STACK_SIZE, 1, 0
+
 
 .section ".note.ABI-tag", "a"
 .align 4
