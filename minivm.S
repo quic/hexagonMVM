@@ -576,7 +576,7 @@ MINIVM_common_user_push:
 		if (p1) r10 = add(r11,#1)			// GSR IE bit
 		if (!p1) r10 = r11				// GSR IE bit
 		r11 = zxtb(r10)					// cause code from SSR
-		gbadva = r13
+		g3:2 = r13:12					// gbadva:gosp = r13:12
 	}
 	{
 		r11 = insert(r10, #2, #GUEST_CAUSE_IE_BIT)	// Insert UM:IE bits
