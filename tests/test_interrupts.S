@@ -209,6 +209,11 @@ GUEST_event_abort:
 //    Cause code 0 is an angel call - do nothing
 //    Cause code 1 will exit (r0 has return code to shell)
 GUEST_event_trap0:
+	r29 = add(r29, #-8)
+	memw(r29) = r10
+	r10 = p3:0
+	memw(r29+#4) = r10
+
 	r10 = gsr
 	r10 = zxth(r10)
 	{
@@ -218,6 +223,10 @@ GUEST_event_trap0:
 	r2 = r0
 	vmstop
 1:
+	r10 = memw(r29+#4)
+	p3:0 = r10
+	r10 = memw(r29)
+	r29 = add(r29, #8)
 	vmrte
 
 GUEST_event_interrupt:
