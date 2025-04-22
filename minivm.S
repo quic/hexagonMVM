@@ -157,17 +157,17 @@ MINIVM_event_vectors:
 
 /*
  * Page Table Format
- * 
+ *
  * L1: PPPP PPPP PPPP PPPP PPPP ... SSS
- * 
+ *
  * L2: PPPP PPPP PPPP PPPP PPPP ...
- * 
+ *
  * V2/V3 User/Supervisor Strategy:
  * MSB of ASID is used for User/Supervisor.
- * Look up the same page table set, but if the Supervisor bit is 
- * set and the MSB of ASID is not set, we get a Permissions Error 
+ * Look up the same page table set, but if the Supervisor bit is
+ * set and the MSB of ASID is not set, we get a Permissions Error
  * instead of a fill.
- * 
+ *
  */
 
 	.global MINIVM_handle_tlbmissx
@@ -279,7 +279,7 @@ MINIVM_handle_tlbmissrw:
 	/* r30[2:0] == 7: INVALID */
 	/* Let's split up into two halves... */
 	/* For L1 direct translations, save off the L1 entry and jump to appropriate code */
-	/* Otherwise, we want to extract 10-(2*SSS) bits from badva at offset 12+(2*SSS) 
+	/* Otherwise, we want to extract 10-(2*SSS) bits from badva at offset 12+(2*SSS)
 	 * and insert them at offset 2 of the (L1 entry & -16) ... */
 	{
 		p1 = tstbit(r30, #HVM_PTE_U_BIT)
@@ -292,7 +292,7 @@ MINIVM_handle_tlbmissrw:
 		if (!p0.new) r22 = add(r20,#12)		// offset
 	}
 	{
-		if (p0) jump 6f			// L1 entry is sufficient... 
+		if (p0) jump 6f			// L1 entry is sufficient...
 		r21 = extractu(r28,r23:22)	// extract right number of bits...
 		if (!p0) r22 = #2
 		if (p0) r22 = r23		// dup l1
@@ -625,7 +625,7 @@ MINIVM_handle_trap1:
 		r15 = r13
 		if (p0) jumpr r12
 	}
-	// WE WERE IN USER MODE... 
+	// WE WERE IN USER MODE...
 	// Fallthrough: jump MINIVM_trap1_from_user
 MINIVM_trap1_from_user:
 MINIVM_trap1_done:
@@ -749,9 +749,9 @@ all_enabled:
 	jump MINIVM_trap1_done
 
 
-/* register new PTB 
+/* register new PTB
  * Record the new location
- * Also, flush the TLB 
+ * Also, flush the TLB
  * Make sure we get the lock
  */
 	.global MINIVM_register_ptb
@@ -953,7 +953,7 @@ MINIVM_setvec: // r0=vector address
 	}
 
 MINIVM_cachectl:
-	/* 
+	/*
 	 * r0: op enum { ICKILL, DCKILL, L2KILL, DCCLEANINVA, ICINVA, PASYNC, PF }
 	 * r1: start VA
 	 * r2: len
@@ -1090,16 +1090,16 @@ MINIVM_return:
 	crswap(r24, sgp)
 	rte
 
-/* 
- * Handle Interrupt 
- * 
+/*
+ * Handle Interrupt
+ *
  * Two options here:
- * A) Save off enough registers to go to C, then go to C for 
+ * A) Save off enough registers to go to C, then go to C for
  *    implementing the interrupt machine virtual model
  * B) Cheap & Easy: Just save off enough registers to do the
  *    interrupt work
- * 
- *    We can augment "Cheap & Easy" by actually having EI/DI 
+ *
+ *    We can augment "Cheap & Easy" by actually having EI/DI
  *    modify the IE bit...
  */
 
@@ -1115,8 +1115,8 @@ MINIVM_handle_int:
 		jump MINIVM_common_user_push
 	}
 
-/* 
- * Double exception!  That means a bug in the MINIVMM 
+/*
+ * Double exception!  That means a bug in the MINIVMM
  * most likely... spin here to help debug
  */
 MINIVM_double_exception:
@@ -1124,8 +1124,8 @@ MINIVM_double_exception:
 	jump 1b
 
 
-/* 
- * Handle exception... 
+/*
+ * Handle exception...
  */
 MINIVM_handle_error:
 	crswap(r24,sgp)
@@ -1213,17 +1213,17 @@ vm_bootup_code:
 	r11 = htid
 	p0 = cmp.eq(r11,#0)
 	if (!p0) jump vm_newcpu_startup
-	
+
 	/* Disabled the CLK Gating */
 	r0 = ##0x00400000
-	s60 = r0 
- 
+	s60 = r0
+
 	r0 = ##0xd013d013
  	s61 = r0
- 	
+
 	r0 = #0x00020d01
  	s62 = r0
- 
+
 	r0 = #0x10
 	s63 = r0
 
@@ -1363,7 +1363,7 @@ vm_bootup_code:
 #define XLAT16M(VAL) .word (VAL | 6); \
 	.word (VAL | 6); \
 	.word (VAL | 6); \
-	.word (VAL | 6); 
+	.word (VAL | 6);
 
 #define XLAT64M(VAL) XLAT16M(VAL) \
 	XLAT16M(VAL | 0x01000000) \
