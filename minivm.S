@@ -1347,7 +1347,7 @@ vm_bootup_code:
 	r6 = #TLB_FIRST_REPLACEABLE_ENTRY
 	memw(r8) = r6
 
-	// Change to quest mode and enable interrupts
+	// Change to guest mode and enable interrupts
 	r0 = ssr
 	r0 = setbit(r0, #SSR_UM_BIT)
 	r0 = setbit(r0, #SSR_IE_BIT)
