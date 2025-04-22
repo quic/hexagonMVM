@@ -1233,7 +1233,7 @@ vm_bootup_code:
 
  	//  Clear pending interrupts and lingering IAD
 	cswi(r0)
-	ciad(r0);
+	ciad(r0)
 
 	r0 = #0x78
 	syscfg = r0
