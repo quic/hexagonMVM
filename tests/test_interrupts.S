@@ -83,7 +83,7 @@ _start:
 	vmintop
 	{ p0 = cmp.eq(r0, #13); if (!p0.new) jump:nt _fail }
 
-	// Chech not taken yet
+	// Check not taken yet
 	r0 = memw(##(interrupt_counts + 13*4))
 	{ p0 = cmp.eq(r0, #0); if (!p0.new) jump:nt _fail }
 
