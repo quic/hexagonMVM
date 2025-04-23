@@ -5,6 +5,7 @@
  */
 
 #include "hexagon_vm.h"
+#include "dspss.h"
 
 #define TLB_ENTRIES 64
 #define TLB_TEMP_ENTRY 1
@@ -1354,6 +1355,38 @@ vm_bootup_code:
 	r0 = setbit(r0, #SSR_GM_BIT)
 	ssr = r0
 
+	// Setup subsys base
+	r0 = cfgbase
+	r0 = asl(r0, #5)
+	r1 = #0x8 // byte offset to subsys base entry
+	r1 = memw_phys(r0, r1)
+	r1 = asl(r1, #5)
+
+	memw(##MINIVM_ss_base_addr) = r1
+
+	// Setup timer
+	r1 = add(r1, #TIMER_OFF_BYTES)
+	memw(##MINIVM_qtimer_base_addr) = r1
+
+    // TODO: Temporary TLB entry for the timer:
+	r15 = #99
+	tlbw(r5:4, r15)
+
+    // TODO: Defer this init to a different context?
+	r2 = add(r1, #TIMER_REG_CNTSR)
+//	memw(r2) = #~0
+
+	r2 = add(r1, #TIMER_REG_CNTACR)
+//	memw(r2) = #~0
+
+	r2 = add(r1, #TIMER_REG_CNTFRQ)
+//	memw(r2) = #DEFAULT_CLK_FREQ_HZ
+
+	r2 = add(r1, #TIMER_REG_ENABLE)
+//	memw(r2) = #1
+
+	// TODO: Enable the timer interrupt:
+
 	// Set return point to guest entry
 	r31 = ##GUEST_ENTRY
 	elr =  r31
@@ -1445,5 +1478,11 @@ MINIVM_lock:
 	.word 0
 
 MINIVM_tlbidx:
+	.word 0
+
+MINIVM_ss_base_addr:
+	.word 0
+
+MINIVM_qtimer_base_addr:
 	.word 0
 
