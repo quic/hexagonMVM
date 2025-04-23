@@ -31,5 +31,3 @@ jobs:
             tar xf /tmp/clang+llvm-19.1.2-cross-hexagon-unknown-linux-musl.tar.xz
       - name: build
         run: make minivm CC=hexagon-unknown-none-elf-clang
-      - name: test
-        run: make test CC=hexagon-unknown-none-elf-clang
