@@ -1,73 +1,65 @@
-ARCH=hexagon-unknown-none-elf-
-CC=${ARCH}clang
-LD=${CC}
-OBJCOPY=${ARCH}objcopy
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+#
+# Makefile for building and running guest test binaries on QEMU.
 
-ARCHV?=73
-GUEST_ENTRY?=0xc0000000
-USER_TEXT?=0x20000000
-USER_RODATA?=0x20400000
-USER_DATA?=0x20800000
-USER_DATA2?=0x20900000
+CLANG     ?= clang
+OBJCOPY   ?= llvm-objcopy
+QEMU      ?= qemu-system-hexagon
+MINIVM    ?= target/hexagon-unknown-none-elf/debug/minivm
+BUILD_DIR := target/guest-tests
 
-TESTS=$(wildcard tests/*.S)
-TESTS_BIN=$(patsubst tests/%.S,tests_bin/%,${TESTS})
-RUN_TESTS=$(patsubst tests/%.S,run-%,${TESTS})
+GUEST_TESTS := first test_vmversion test_interrupts test_processors test_mmu
 
-all: minivm test
+.PHONY: guest-tests minivm minivm-with-tests on-target-tests zephyr-boot clean-guest-tests
 
-CFLAGS_EXTRA+=-mv${ARCHV} -O0 -g -DGUEST_ENTRY=${GUEST_ENTRY}
-ASFLAGS_EXTRA+=${CFLAGS_EXTRA}
-LDFLAGS_EXTRA+=-nostdlib -static
-GUEST_LDFLAGS=-nostdlib \
-    -Wl,-section-start,.start=${GUEST_ENTRY} \
-    -Wl,-section-start,.user_text=${USER_TEXT} \
-    -Wl,-section-start,.user_rodata=${USER_RODATA} \
-    -Wl,-section-start,.user_data=${USER_DATA} \
-    -Wl,-section-start,.user_data2=${USER_DATA2}
+guest-tests: $(addprefix $(BUILD_DIR)/, $(addsuffix .pass, $(GUEST_TESTS)))
+	@echo "All guest tests passed."
 
-OBJS=minivm.o
+minivm:
+	cargo build -Zbuild-std=core,alloc -Zbuild-std-features=compiler-builtins-mem
 
-prefix?=/usr/local
-exec_prefix?=$(prefix)
-bindir?=$(exec_prefix)/bin
+minivm-with-tests:
+	cargo build -Zbuild-std=core,alloc \
+		-Zbuild-std-features=compiler-builtins-mem --features run-tests
 
-minivm.o: minivm.S hexagon_vm.h
-	${CC} ${CFLAGS} ${CFLAGS_EXTRA} -c -o $@ $<
+on-target-tests: minivm-with-tests
+	@echo "  ON-TARGET TESTS"
+	timeout 60 $(QEMU) -M virt -nographic \
+		-kernel target/hexagon-unknown-none-elf/debug/minivm
 
-minivm: ${OBJS} Makefile hexagon.lds
-	${LD} -o $@ -T hexagon.lds ${OBJS} ${LDFLAGS} ${LDFLAGS_EXTRA}
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
 
-tests_bin/%: tests/%.S hexagon_vm.h Makefile
-	@mkdir -p tests_bin
-	${CC} ${CFLAGS} ${CFLAGS_EXTRA} -o $@ $< ${GUEST_LDFLAGS}
+$(BUILD_DIR)/%.elf: tests/%.S hexagon_vm.h tests/guest.ld | $(BUILD_DIR)
+	$(CLANG) --target=hexagon -mcpu=hexagonv73 -nostdlib -fuse-ld=lld \
+		-T tests/guest.ld -I. -o $@ $<
 
-.PHONY: test build_tests run_tests FORCE
-test:
-	make build_tests
-	make run_tests
+$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf
+	$(OBJCOPY) -O binary $< $@
 
-build_tests: ${TESTS_BIN}
+# Run a single test: load guest binary at 0xa0000000 (boot_guest entry),
+# then check output for PASS.
+$(BUILD_DIR)/%.pass: $(BUILD_DIR)/%.bin $(MINIVM)
+	@echo "  TEST $*"
+	@timeout 30 $(QEMU) -M virt -nographic \
+		-kernel $(MINIVM) \
+		-device "loader,addr=0xa0000000,file=$<" \
+		> $(BUILD_DIR)/$*.log 2>&1; \
+	if grep -q "PASS" $(BUILD_DIR)/$*.log; then \
+		echo "  PASS $*"; \
+		touch $@; \
+	else \
+		echo "  FAIL $* (see $(BUILD_DIR)/$*.log)"; \
+		exit 1; \
+	fi
 
-run_tests: ${RUN_TESTS}
+ZEPHYR_BIN ?= zephyr.bin
 
-run-%: tests_bin/% minivm
-	qemu-system-hexagon \
-		-display none -M SA8775P_CDSP0 -kernel ./minivm ${QEMU_OPTS} \
-		-device loader,addr=${GUEST_ENTRY},file=$<
+zephyr-boot: minivm
+	timeout 30 $(QEMU) -M virt -nographic -m 4G \
+		-kernel $(MINIVM) \
+		-device "loader,addr=0xa0000000,file=$(ZEPHYR_BIN)"
 
-.PHONY: dbg install
-dbg: FORCE
-	lldb -o 'file ./minivm' -o 'target modules add ./vmlinux' -o 'target modules load -s 0 --file ./vmlinux' -o 'gdb-remote localhost:1234' ${LLDB_OPTS}
-
-minivm.bin: minivm
-	${OBJCOPY} -O binary $< $@
-
-install: minivm minivm.bin $(TESTS_BIN)
-	 mkdir -p $(bindir)/
-	 install -D $^ $(bindir)/
-
-clean:
-	rm -rf tests_bin minivm minivm.bin ${OBJS}
-
-
+clean-guest-tests:
+	rm -rf $(BUILD_DIR)
