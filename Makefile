@@ -9,6 +9,12 @@ QEMU      ?= qemu-system-hexagon
 MINIVM    ?= target/hexagon-unknown-none-elf/debug/minivm
 BUILD_DIR := target/guest-tests
 
+# Allow the Rust linker to be overridden via CC (used in CI with a cross clang).
+# When CC is not set, .cargo/config.toml supplies the linker.
+ifdef CC
+export CARGO_TARGET_HEXAGON_UNKNOWN_NONE_ELF_LINKER := $(CC)
+endif
+
 GUEST_TESTS := first test_vmversion test_interrupts test_processors test_mmu
 
 .PHONY: guest-tests minivm minivm-with-tests on-target-tests zephyr-boot clean-guest-tests
@@ -54,7 +60,7 @@ $(BUILD_DIR)/%.pass: $(BUILD_DIR)/%.bin $(MINIVM)
 		exit 1; \
 	fi
 
-ZEPHYR_BIN ?= zephyr.bin
+ZEPHYR_BIN ?= tests_bin/zephyr.bin
 
 zephyr-boot: minivm
 	timeout 30 $(QEMU) -M virt -nographic -m 4G \
